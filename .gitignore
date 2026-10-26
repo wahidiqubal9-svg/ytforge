@@ -9,3 +9,5 @@ local.properties
 .private/
 node_modules/
 out/
+
+.and-code/
