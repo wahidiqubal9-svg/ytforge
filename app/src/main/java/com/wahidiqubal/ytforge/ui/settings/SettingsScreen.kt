@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.core.content.FileProvider
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -24,10 +25,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -54,6 +58,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.wahidiqubal.ytforge.BuildConfig
+import com.wahidiqubal.ytforge.data.chat.ModelCatalogClient
 import com.wahidiqubal.ytforge.data.render.RenderClient
 import com.wahidiqubal.ytforge.data.settings.ApiSettings
 import com.wahidiqubal.ytforge.data.settings.Providers
@@ -87,6 +92,10 @@ fun SettingsScreen(
     var youtubeClientId by rememberSaveable { mutableStateOf(settings.youtubeClientId) }
     var renderRepo by rememberSaveable { mutableStateOf(settings.renderRepo) }
     var renderToken by rememberSaveable { mutableStateOf(settings.renderToken) }
+    var modelOptions by remember { mutableStateOf<List<String>>(emptyList()) }
+    var showModels by remember { mutableStateOf(false) }
+    var isFetchingModels by remember { mutableStateOf(false) }
+    var modelError by remember { mutableStateOf<String?>(null) }
     var videoRatio by rememberSaveable { mutableStateOf(settings.videoRatio) }
     var videoQuality by rememberSaveable { mutableStateOf(settings.videoQuality) }
     var previewFirst by rememberSaveable { mutableStateOf(settings.previewFirst) }
@@ -99,6 +108,35 @@ fun SettingsScreen(
     var renderStatus by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val renderClient = remember { RenderClient(context) }
+    val modelCatalog = remember { ModelCatalogClient() }
+
+    fun fetchModels() {
+        if (isFetchingModels) return
+        scope.launch {
+            isFetchingModels = true
+            modelError = null
+            val current = ApiSettings(
+                providerId = providerId,
+                baseUrl = baseUrl.trim(),
+                model = model,
+                apiKey = apiKey.trim(),
+            )
+            runCatching { modelCatalog.fetch(current) }
+                .onSuccess { fetched ->
+                    modelOptions = fetched
+                    showModels = fetched.isNotEmpty()
+                }
+                .onFailure { failure ->
+                    modelError = failure.message ?: "Could not fetch models."
+                    val fallback = modelCatalog.fallback(providerId)
+                    if (fallback.isNotEmpty()) {
+                        modelOptions = fallback
+                        showModels = true
+                    }
+                }
+            isFetchingModels = false
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -141,6 +179,9 @@ fun SettingsScreen(
                                 selected = providerId == preset.id,
                                 onClick = {
                                     providerId = preset.id
+                                    modelOptions = emptyList()
+                                    showModels = false
+                                    modelError = null
                                     if (preset.id != "custom") {
                                         baseUrl = preset.baseUrl
                                         model = preset.model
@@ -184,16 +225,76 @@ fun SettingsScreen(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                     )
                     Spacer(Modifier.height(10.dp))
-                    OutlinedTextField(
-                        value = model,
-                        onValueChange = { model = it },
-                        label = { Text("Model") },
-                        singleLine = true,
+                    Box {
+                        OutlinedTextField(
+                            value = model,
+                            onValueChange = {
+                                model = it
+                                modelError = null
+                            },
+                            label = { Text("Model") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            trailingIcon = {
+                                IconButton(onClick = { fetchModels() }, enabled = !isFetchingModels) {
+                                    if (isFetchingModels) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(18.dp),
+                                            strokeWidth = 2.dp,
+                                            color = Accent,
+                                        )
+                                    } else {
+                                        Icon(
+                                            Icons.Outlined.Refresh,
+                                            contentDescription = "Fetch models",
+                                            tint = Accent,
+                                        )
+                                    }
+                                }
+                            },
+                            supportingText = {
+                                Text(
+                                    modelError ?: "${Providers.byId(providerId).hint} · Tap refresh to load models.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (modelError != null) Color(0xFFFF9AA9) else Muted,
+                                )
+                            },
+                        )
+                        DropdownMenu(
+                            expanded = showModels && modelOptions.isNotEmpty(),
+                            onDismissRequest = { showModels = false },
+                        ) {
+                            modelOptions.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(option) },
+                                    onClick = {
+                                        model = option
+                                        showModels = false
+                                        modelError = null
+                                    },
+                                )
+                            }
+                        }
+                    }
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        supportingText = {
-                            Text(Providers.byId(providerId).hint, style = MaterialTheme.typography.labelSmall)
-                        },
-                    )
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        OutlinedButton(
+                            onClick = { fetchModels() },
+                            enabled = !isFetchingModels && apiKey.isNotBlank(),
+                        ) {
+                            Text("Fetch models")
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        if (modelError != null) {
+                            Text(
+                                "Using suggested models",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Muted,
+                            )
+                        }
+                    }
                 }
             }
 

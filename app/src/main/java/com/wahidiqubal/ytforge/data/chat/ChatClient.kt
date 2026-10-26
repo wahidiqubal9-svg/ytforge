@@ -120,7 +120,7 @@ class ChatClient {
         client.newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
-                error("${settings.model} error ${response.code}: ${shortError(body)}")
+                error(modelError(settings, response.code, body))
             }
             val root = json.parseToJsonElement(body).jsonObject
             val content = root["choices"]?.jsonArray?.firstOrNull()
@@ -183,7 +183,7 @@ class ChatClient {
         client.newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
-                error("${settings.model} error ${response.code}: ${shortError(body)}")
+                error(modelError(settings, response.code, body))
             }
             val root = json.parseToJsonElement(body).jsonObject
             val text = root["content"]?.jsonArray
@@ -240,6 +240,16 @@ class ChatClient {
 
     private fun imageBase64(path: String): String? =
         runCatching { Base64.encodeToString(java.io.File(path).readBytes(), Base64.NO_WRAP) }.getOrNull()
+
+    private fun modelError(settings: ApiSettings, code: Int, body: String): String {
+        val detail = shortError(body)
+        val hint = if (code == 404) {
+            " Tap the refresh icon beside Model in Settings and pick an available model."
+        } else {
+            ""
+        }
+        return "${settings.model} error $code: $detail$hint"
+    }
 
     private fun shortError(body: String): String {
         if (body.isBlank()) return "empty response"
