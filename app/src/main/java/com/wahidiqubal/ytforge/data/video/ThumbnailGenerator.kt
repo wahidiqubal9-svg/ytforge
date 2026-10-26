@@ -27,9 +27,21 @@ object ThumbnailGenerator {
         subheadline: String,
         code: String,
         cta: String,
+        variant: Int = 0,
     ): File? = withContext(Dispatchers.IO) {
         val width = 1280
         val height = 720
+        val variantIndex = ((variant % 3) + 3) % 3
+        val accent = when (variantIndex) {
+            1 -> 0xFF7FD7FF.toInt()
+            2 -> 0xFFFFC857.toInt()
+            else -> 0xFF3EE6B0.toInt()
+        }
+        val codeBackground = when (variantIndex) {
+            1 -> 0xFF173A5E.toInt()
+            2 -> 0xFF5A2A0A.toInt()
+            else -> 0xFF582E9C.toInt()
+        }
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
@@ -39,9 +51,14 @@ object ThumbnailGenerator {
             background.recycle()
         } else {
             val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+            val colors = when (variantIndex) {
+                1 -> intArrayOf(0xFF173A5E.toInt(), 0xFF0B1E33.toInt(), 0xFF07111F.toInt())
+                2 -> intArrayOf(0xFF5A2A0A.toInt(), 0xFF2A160B.toInt(), 0xFF07111F.toInt())
+                else -> intArrayOf(0xFF582E9C.toInt(), 0xFF1B1233.toInt(), 0xFF07111F.toInt())
+            }
             paint.shader = LinearGradient(
                 0f, 0f, width.toFloat(), height.toFloat(),
-                intArrayOf(0xFF582E9C.toInt(), 0xFF1B1233.toInt(), 0xFF07111F.toInt()),
+                colors,
                 floatArrayOf(0f, 0.55f, 1f),
                 Shader.TileMode.CLAMP,
             )
@@ -58,7 +75,7 @@ object ThumbnailGenerator {
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), scrim)
 
         val kickerPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0xFF3EE6B0.toInt()
+            color = accent
             textSize = 24f
             typeface = Typeface.create("sans-serif", Typeface.BOLD)
             letterSpacing = 0.18f
@@ -97,8 +114,9 @@ object ThumbnailGenerator {
         canvas.restore()
 
         if (code.isNotBlank()) {
-            val box = RectF(72f, 535f, 72f + 430f, 645f)
-            val boxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF582E9C.toInt() }
+            val boxX = if (variantIndex == 1) 778f else 72f
+            val box = RectF(boxX, 535f, boxX + 430f, 645f)
+            val boxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = codeBackground }
             canvas.drawRoundRect(box, 18f, 18f, boxPaint)
             val labelPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.WHITE
@@ -106,13 +124,17 @@ object ThumbnailGenerator {
                 typeface = Typeface.create("sans-serif", Typeface.BOLD)
                 letterSpacing = 0.12f
             }
-            canvas.drawText("USE CODE", 96f, 575f, labelPaint)
+            canvas.drawText("USE CODE", boxX + 24f, 575f, labelPaint)
             val codePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = 0xFFFFD700.toInt()
+                color = if (variantIndex == 2) 0xFFFFFFFF.toInt() else 0xFFFFD700.toInt()
                 textSize = 54f
                 typeface = Typeface.create("sans-serif", Typeface.BOLD)
             }
-            canvas.drawText(code, 96f, 628f, codePaint)
+            canvas.drawText(code, boxX + 24f, 628f, codePaint)
+            if (variantIndex == 1) {
+                val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = accent }
+                canvas.drawRect(40f, 170f, 48f, 650f, linePaint)
+            }
         }
 
         val ctaPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -120,7 +142,8 @@ object ThumbnailGenerator {
             textSize = 28f
             typeface = Typeface.create("sans-serif", Typeface.BOLD)
         }
-        canvas.drawText(cta.ifBlank { "Tap the link for details." }, 72f, 690f, ctaPaint)
+        canvas.drawText("↗ ", 72f, 690f, ctaPaint.apply { color = accent })
+        canvas.drawText(cta.ifBlank { "Tap the link for details." }, 112f, 690f, ctaPaint.apply { color = Color.WHITE })
 
         val dir = File(context.filesDir, "thumbnails").apply { mkdirs() }
         val file = File(dir, "${UUID.randomUUID()}.jpg")

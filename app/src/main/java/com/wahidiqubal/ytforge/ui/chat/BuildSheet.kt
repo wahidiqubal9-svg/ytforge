@@ -119,6 +119,9 @@ fun BuildSheet(
     var images by remember { mutableStateOf(initialImages) }
     var thumbnail by remember { mutableStateOf<File?>(null) }
     var thumbnailBusy by remember { mutableStateOf(false) }
+    var thumbnailError by remember { mutableStateOf<String?>(null) }
+    var thumbnailVariant by remember { mutableStateOf(0) }
+    var step by rememberSaveable { mutableStateOf(0) }
     var isBuilding by remember { mutableStateOf(false) }
     var isImporting by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
@@ -146,22 +149,32 @@ fun BuildSheet(
         }
     }
 
-    fun generateThumbnail() {
+    fun generateThumbnail(nextVariant: Boolean = false) {
+        if (thumbnailBusy) return
+        if (nextVariant) thumbnailVariant += 1
         scope.launch {
             thumbnailBusy = true
-            thumbnail = ThumbnailGenerator.generate(
-                context = context,
-                imagePath = images.firstOrNull()?.path,
-                headline = headline,
-                subheadline = subheadline,
-                code = code,
-                cta = cta,
-            )
+            thumbnailError = null
+            thumbnail = null
+            runCatching {
+                ThumbnailGenerator.generate(
+                    context = context,
+                    imagePath = images.firstOrNull()?.path,
+                    headline = headline,
+                    subheadline = subheadline,
+                    code = code,
+                    cta = cta,
+                    variant = thumbnailVariant,
+                ) ?: throw IllegalStateException("Thumbnail generator returned no file.")
+            }.onSuccess { thumbnail = it }
+                .onFailure { thumbnailError = it.message ?: "Could not generate thumbnail." }
             thumbnailBusy = false
         }
     }
 
-    LaunchedEffect(Unit) { generateThumbnail() }
+    LaunchedEffect(step) {
+        if (step == 0 || step == 5) generateThumbnail()
+    }
 
     fun build() {
         if (isBuilding) return
@@ -235,9 +248,10 @@ fun BuildSheet(
                     Icon(Icons.Outlined.Movie, contentDescription = null, tint = Accent)
                     Spacer(Modifier.width(9.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Review & Final Build", style = MaterialTheme.typography.titleLarge, color = Ink)
+                        Text(if (result == null) "Build video" else "Your video is ready", style = MaterialTheme.typography.titleLarge, color = Ink)
                         Text(
-                            "$ratio · 720p · duration follows the script",
+                            if (result == null) "Step ${step + 1} of 6 · $ratio · 720p"
+                            else "Step 6 of 6 · $ratio · 720p",
                             style = MaterialTheme.typography.labelSmall,
                             color = Muted,
                         )
@@ -255,196 +269,205 @@ fun BuildSheet(
                 ) {
                     if (result == null) {
                         item {
-                            Text(
-                                "Generated from your chat and image. Edit anything, regenerate the thumbnail, then tap Final Build.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Muted,
-                            )
+                            Text(stepTitle(step), style = MaterialTheme.typography.headlineMedium, color = Ink)
+                            Text(stepHint(step), style = MaterialTheme.typography.bodyMedium, color = Muted)
                         }
-                        item {
-                            Surface(
-                                shape = RoundedCornerShape(14.dp),
-                                color = SurfaceCard,
-                                border = BorderStroke(1.dp, OutlineDark),
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
-                                    if (thumbnail != null) {
-                                        AsyncImage(
-                                            model = thumbnail,
-                                            contentDescription = "Generated thumbnail",
-                                            contentScale = ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize(),
+                        when (step) {
+                            0 -> {
+                                item {
+                                    ThumbnailPreview(
+                                        thumbnail = thumbnail,
+                                        busy = thumbnailBusy,
+                                        error = thumbnailError,
+                                        onRegenerate = { generateThumbnail(nextVariant = true) },
+                                    )
+                                }
+                                item {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text("Images", style = MaterialTheme.typography.labelLarge, color = Ink)
+                                        Spacer(Modifier.weight(1f))
+                                        IconButton(
+                                            onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                                            enabled = !isImporting && images.size < 6,
+                                        ) {
+                                            if (isImporting) {
+                                                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = Accent)
+                                            } else {
+                                                Icon(Icons.Outlined.PhotoLibrary, contentDescription = "Add images", tint = Accent)
+                                            }
+                                        }
+                                    }
+                                }
+                                if (images.isNotEmpty()) {
+                                    item {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .horizontalScroll(rememberScrollState()),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        ) {
+                                            images.forEach { attachment ->
+                                                Box(modifier = Modifier.size(62.dp)) {
+                                                    AsyncImage(
+                                                        model = File(attachment.path),
+                                                        contentDescription = attachment.name,
+                                                        modifier = Modifier
+                                                            .fillMaxSize()
+                                                            .clip(RoundedCornerShape(9.dp)),
+                                                    )
+                                                    Icon(
+                                                        Icons.Outlined.Close,
+                                                        contentDescription = "Remove image",
+                                                        tint = Ink,
+                                                        modifier = Modifier
+                                                            .align(Alignment.TopEnd)
+                                                            .size(18.dp)
+                                                            .background(Color(0xCC07111F), CircleShape)
+                                                            .clickable { images = images - attachment }
+                                                            .padding(2.dp),
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                item {
+                                    Text("Aspect ratio", style = MaterialTheme.typography.labelLarge, color = Ink)
+                                    Spacer(Modifier.height(6.dp))
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        listOf("9:16", "16:9", "1:1").forEach { value ->
+                                            if (ratio == value) {
+                                                Button(onClick = { ratio = value }) { Text(value) }
+                                            } else {
+                                                OutlinedButton(onClick = { ratio = value }) { Text(value) }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            1 -> {
+                                item {
+                                    OutlinedTextField(
+                                        value = headline,
+                                        onValueChange = { headline = it },
+                                        label = { Text("Headline") },
+                                        maxLines = 3,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                }
+                            }
+                            2 -> {
+                                item {
+                                    OutlinedTextField(
+                                        value = subheadline,
+                                        onValueChange = { subheadline = it },
+                                        label = { Text("Subheadline") },
+                                        maxLines = 3,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                }
+                                item {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        OutlinedTextField(
+                                            value = code,
+                                            onValueChange = { code = it },
+                                            label = { Text("Coupon code") },
+                                            singleLine = true,
+                                            modifier = Modifier.weight(1f),
                                         )
-                                    } else {
-                                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                            Text(if (thumbnailBusy) "Generating thumbnail…" else "Thumbnail", color = Muted)
+                                        OutlinedTextField(
+                                            value = cta,
+                                            onValueChange = { cta = it },
+                                            label = { Text("CTA / link") },
+                                            singleLine = true,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                    }
+                                }
+                            }
+                            3 -> {
+                                item {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text("${narration.length}/2500 characters · Sarvam hi-IN", style = MaterialTheme.typography.labelSmall, color = Muted)
+                                        Spacer(Modifier.weight(1f))
+                                        if (lastUserMessage.isNotBlank()) {
+                                            TextButton(onClick = { narration = lastUserMessage }) { Text("Use last message") }
                                         }
                                     }
                                 }
-                            }
-                            Spacer(Modifier.height(6.dp))
-                            OutlinedButton(onClick = { generateThumbnail() }, enabled = !thumbnailBusy) {
-                                Text("Regenerate thumbnail")
-                            }
-                        }
-                        item {
-                            Text("Aspect ratio", style = MaterialTheme.typography.labelLarge, color = Ink)
-                            Spacer(Modifier.height(6.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                listOf("9:16", "16:9", "1:1").forEach { value ->
-                                    if (ratio == value) {
-                                        Button(onClick = { ratio = value }) { Text(value) }
-                                    } else {
-                                        OutlinedButton(onClick = { ratio = value }) { Text(value) }
-                                    }
+                                item {
+                                    OutlinedTextField(
+                                        value = narration,
+                                        onValueChange = { narration = it },
+                                        label = { Text("Narration script") },
+                                        minLines = 6,
+                                        maxLines = 14,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        supportingText = {
+                                            Text("Duration follows this script. No fixed cap.", style = MaterialTheme.typography.labelSmall)
+                                        },
+                                    )
                                 }
                             }
-                        }
-                        item {
-                            OutlinedTextField(
-                                value = headline,
-                                onValueChange = { headline = it },
-                                label = { Text("Headline") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-                        item {
-                            OutlinedTextField(
-                                value = subheadline,
-                                onValueChange = { subheadline = it },
-                                label = { Text("Subheadline") },
-                                maxLines = 2,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-                        item {
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                OutlinedTextField(
-                                    value = code,
-                                    onValueChange = { code = it },
-                                    label = { Text("Coupon code") },
-                                    singleLine = true,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                OutlinedTextField(
-                                    value = cta,
-                                    onValueChange = { cta = it },
-                                    label = { Text("CTA / link") },
-                                    singleLine = true,
-                                    modifier = Modifier.weight(1f),
-                                )
-                            }
-                        }
-                        item {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text("Images", style = MaterialTheme.typography.labelLarge, color = Ink)
-                                Spacer(Modifier.weight(1f))
-                                if (lastUserMessage.isNotBlank()) {
-                                    TextButton(onClick = { narration = lastUserMessage }) {
-                                        Text("Use last message")
-                                    }
+                            4 -> {
+                                item {
+                                    OutlinedTextField(
+                                        value = title,
+                                        onValueChange = { title = it },
+                                        label = { Text("YouTube title") },
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
                                 }
-                                IconButton(
-                                    onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                                    enabled = !isImporting && images.size < 6,
-                                ) {
-                                    if (isImporting) {
-                                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = Accent)
-                                    } else {
-                                        Icon(Icons.Outlined.PhotoLibrary, contentDescription = "Add images", tint = Accent)
-                                    }
+                                item {
+                                    OutlinedTextField(
+                                        value = description,
+                                        onValueChange = { description = it },
+                                        label = { Text("YouTube description") },
+                                        minLines = 4,
+                                        maxLines = 8,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                }
+                                item {
+                                    OutlinedTextField(
+                                        value = tags,
+                                        onValueChange = { tags = it },
+                                        label = { Text("Tags (comma-separated)") },
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                                    )
                                 }
                             }
-                        }
-                        if (images.isNotEmpty()) {
-                            item {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(rememberScrollState()),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                ) {
-                                    images.forEach { attachment ->
-                                        Box(modifier = Modifier.size(62.dp)) {
-                                            AsyncImage(
-                                                model = File(attachment.path),
-                                                contentDescription = attachment.name,
-                                                modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .clip(RoundedCornerShape(9.dp)),
-                                            )
-                                            Icon(
-                                                Icons.Outlined.Close,
-                                                contentDescription = "Remove image",
-                                                tint = Ink,
-                                                modifier = Modifier
-                                                    .align(Alignment.TopEnd)
-                                                    .size(18.dp)
-                                                    .background(Color(0xCC07111F), CircleShape)
-                                                    .clickable { images = images - attachment }
-                                                    .padding(2.dp),
-                                            )
-                                        }
-                                    }
+                            5 -> {
+                                item {
+                                    ThumbnailPreview(
+                                        thumbnail = thumbnail,
+                                        busy = thumbnailBusy,
+                                        error = thumbnailError,
+                                        onRegenerate = { generateThumbnail(nextVariant = true) },
+                                    )
+                                }
+                                item {
+                                    Text("$ratio · 720p · ${narration.length} script characters · ${images.size} image(s)", style = MaterialTheme.typography.bodyMedium, color = Ink)
+                                    Text("Title: ${title.ifBlank { headline }}", style = MaterialTheme.typography.bodyMedium, color = Muted)
+                                    if (code.isNotBlank()) Text("Code: $code", style = MaterialTheme.typography.bodyMedium, color = Muted)
+                                    if (cta.isNotBlank()) Text("CTA: $cta", style = MaterialTheme.typography.bodyMedium, color = Muted)
                                 }
                             }
-                        }
-                        item {
-                            OutlinedTextField(
-                                value = narration,
-                                onValueChange = { narration = it },
-                                label = { Text("Narration script") },
-                                minLines = 5,
-                                maxLines = 10,
-                                modifier = Modifier.fillMaxWidth(),
-                                supportingText = {
-                                    Text("${narration.length}/2500 characters · Sarvam hi-IN", style = MaterialTheme.typography.labelSmall)
-                                },
-                            )
-                        }
-                        item {
-                            OutlinedTextField(
-                                value = title,
-                                onValueChange = { title = it },
-                                label = { Text("YouTube title (optional)") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-                        item {
-                            OutlinedTextField(
-                                value = description,
-                                onValueChange = { description = it },
-                                label = { Text("YouTube description (optional)") },
-                                minLines = 3,
-                                maxLines = 6,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        }
-                        item {
-                            OutlinedTextField(
-                                value = tags,
-                                onValueChange = { tags = it },
-                                label = { Text("Tags (comma-separated)") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                            )
                         }
                         status?.let { text ->
-                            item {
-                                Text(text, style = MaterialTheme.typography.bodyMedium, color = Accent)
-                            }
+                            item { Text(text, style = MaterialTheme.typography.bodyMedium, color = Accent) }
                         }
                         error?.let { text ->
-                            item {
-                                Text(text, style = MaterialTheme.typography.bodyMedium, color = Color(0xFFFF9AA9))
-                            }
+                            item { Text(text, style = MaterialTheme.typography.bodyMedium, color = Color(0xFFFF9AA9)) }
                         }
                     } else {
                         val output = result!!
@@ -562,19 +585,30 @@ fun BuildSheet(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (result == null) {
-                        OutlinedButton(onClick = onDismiss, enabled = !isBuilding) { Text("Cancel") }
+                        if (step == 0) {
+                            TextButton(onClick = onDismiss, enabled = !isBuilding) { Text("Cancel") }
+                        } else {
+                            OutlinedButton(onClick = { step-- }, enabled = !isBuilding) { Text("Back") }
+                        }
                         Spacer(Modifier.weight(1f))
-                        Button(onClick = ::build, enabled = !isBuilding && !isImporting) {
-                            if (isBuilding) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp,
-                                    color = SurfaceDeep,
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text("Rendering…")
-                            } else {
-                                Text("Final Build")
+                        if (step < 5) {
+                            Button(
+                                onClick = { step++ },
+                                enabled = !isBuilding && (step != 0 || !thumbnailBusy),
+                            ) { Text("Next") }
+                        } else {
+                            Button(onClick = ::build, enabled = !isBuilding && !isImporting) {
+                                if (isBuilding) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = SurfaceDeep,
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Rendering…")
+                                } else {
+                                    Text("Final Build")
+                                }
                             }
                         }
                     } else {
@@ -643,4 +677,71 @@ private fun copyMetadata(context: Context, title: String, description: String, t
     }
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     clipboard.setPrimaryClip(ClipData.newPlainText("YouTube metadata", text))
+}
+
+
+@Composable
+private fun ThumbnailPreview(
+    thumbnail: File?,
+    busy: Boolean,
+    error: String?,
+    onRegenerate: () -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = SurfaceCard,
+        border = BorderStroke(1.dp, OutlineDark),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+            if (thumbnail != null) {
+                AsyncImage(
+                    model = thumbnail,
+                    contentDescription = "Generated thumbnail",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        when {
+                            busy -> "Generating thumbnail…"
+                            error != null -> "Thumbnail failed"
+                            else -> "Thumbnail"
+                        },
+                        color = Muted,
+                    )
+                }
+            }
+        }
+    }
+    Spacer(Modifier.height(6.dp))
+    OutlinedButton(onClick = onRegenerate, enabled = !busy) {
+        if (busy) {
+            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = Accent)
+        } else {
+            Text("Regenerate thumbnail")
+        }
+    }
+    error?.let {
+        Text(it, style = MaterialTheme.typography.labelSmall, color = Color(0xFFFF9AA9))
+    }
+}
+
+private fun stepTitle(step: Int): String = when (step) {
+    0 -> "1 · Thumbnail"
+    1 -> "2 · Headline"
+    2 -> "3 · Subheadline & offer"
+    3 -> "4 · Voiceover script"
+    4 -> "5 · YouTube metadata"
+    else -> "6 · Final review"
+}
+
+private fun stepHint(step: Int): String = when (step) {
+    0 -> "Generate the thumbnail first. Approve it, then move on."
+    1 -> "The main line on the video and thumbnail."
+    2 -> "Supporting line, coupon code and call to action."
+    3 -> "The exact script Sarvam will speak. Duration follows this."
+    4 -> "Title, description and tags for YouTube."
+    else -> "Everything is ready. Build the video."
 }
