@@ -63,7 +63,7 @@ class GitHubSetupClient(private val context: Context) {
 
     private fun getLogin(token: String): String {
         val request = api("https://api.github.com/user", token).get().build()
-        http.newCall(request).execute().use { response ->
+        http.executeGitHub(request).use { response ->
             if (!response.isSuccessful) error(githubError("Account", response))
             val body = json.parseToJsonElement(response.body?.string().orEmpty()).jsonObject
             return body["login"]?.jsonPrimitive?.content ?: error("GitHub returned no login.")
@@ -72,7 +72,7 @@ class GitHubSetupClient(private val context: Context) {
 
     private fun getRepo(token: String, owner: String, repo: String): kotlinx.serialization.json.JsonObject? {
         val request = api("$API/repos/$owner/$repo", token).get().build()
-        http.newCall(request).execute().use { response ->
+        http.executeGitHub(request).use { response ->
             if (response.code == 404) return null
             if (!response.isSuccessful) error(githubError("Repository check", response))
             return json.parseToJsonElement(response.body?.string().orEmpty()).jsonObject
@@ -89,7 +89,7 @@ class GitHubSetupClient(private val context: Context) {
         val request = api("$API/user/repos", token)
             .post(payload.toString().toRequestBody(JSON))
             .build()
-        http.newCall(request).execute().use { response ->
+        http.executeGitHub(request).use { response ->
             if (response.code == 422) return
             if (!response.isSuccessful) error(githubError("Create repository", response))
         }
@@ -118,7 +118,7 @@ class GitHubSetupClient(private val context: Context) {
         val request = api("$API/repos/$owner/$repo/contents/$path", token)
             .put(payload.toString().toRequestBody(JSON))
             .build()
-        http.newCall(request).execute().use { response ->
+        http.executeGitHub(request).use { response ->
             if (!response.isSuccessful) error(githubError("Workflow upload", response))
         }
     }
@@ -131,7 +131,7 @@ class GitHubSetupClient(private val context: Context) {
         val request = api("$API/repos/$owner/$repo/actions/permissions", token)
             .put(payload.toString().toRequestBody(JSON))
             .build()
-        http.newCall(request).execute().use { response ->
+        http.executeGitHub(request).use { response ->
             if (response.code == 403 || response.code == 404) return
             if (!response.isSuccessful) error(githubError("Enable Actions", response))
         }
@@ -143,7 +143,7 @@ class GitHubSetupClient(private val context: Context) {
                 "$API/repos/$owner/$repo/actions/workflows/render.yml?ref=${encode(branch)}",
                 token,
             ).get().build()
-            http.newCall(request).execute().use { response ->
+            http.executeGitHub(request).use { response ->
                 if (response.isSuccessful) return
                 if (response.code != 404) error(githubError("Workflow verify", response))
             }

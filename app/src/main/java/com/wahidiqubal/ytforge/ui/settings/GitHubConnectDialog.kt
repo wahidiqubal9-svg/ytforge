@@ -85,7 +85,11 @@ fun GitHubConnectDialog(
             status = "Connected."
             onConnected(result, token.accessToken, clientId)
         }.onFailure {
-            error = it.message ?: "GitHub setup failed."
+            error = when (it) {
+                is java.net.UnknownHostException ->
+                    "Could not resolve github.com. Check internet/VPN/DNS, then tap Connect again."
+                else -> it.message ?: "GitHub setup failed."
+            }
         }
         busy = false
     }

@@ -48,7 +48,7 @@ class GitHubDeviceAuth {
                         .build(),
                 )
                 .build()
-            http.newCall(request).execute().use { response ->
+            http.executeGitHub(request).use { response ->
                 val body = response.body?.string().orEmpty()
                 if (!response.isSuccessful) error("GitHub device login failed (HTTP ${response.code}).")
                 val root = json.parseToJsonElement(body).jsonObject
@@ -88,7 +88,7 @@ class GitHubDeviceAuth {
                         .build(),
                 )
                 .build()
-            http.newCall(request).execute().use { response ->
+            http.executeGitHub(request).use { response ->
                 val body = response.body?.string().orEmpty()
                 if (!response.isSuccessful) error("GitHub token request failed (HTTP ${response.code}).")
                 val root = json.parseToJsonElement(body).jsonObject

@@ -2,6 +2,7 @@ package com.wahidiqubal.ytforge.data.render
 
 import android.content.Context
 import android.util.Base64
+import com.wahidiqubal.ytforge.data.github.executeGitHub
 import com.wahidiqubal.ytforge.data.settings.ApiSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -88,7 +89,7 @@ class RenderClient(private val context: Context) {
             .header("User-Agent", "YTForge")
             .put(payload.toString().toRequestBody(JSON))
             .build()
-        http.newCall(request).execute().use { response ->
+        http.executeGitHub(request).use { response ->
             if (!response.isSuccessful) error(githubError("Upload", response))
         }
     }
@@ -108,7 +109,7 @@ class RenderClient(private val context: Context) {
             .header("User-Agent", "YTForge")
             .post(payload.toString().toRequestBody(JSON))
             .build()
-        http.newCall(request).execute().use { response ->
+        http.executeGitHub(request).use { response ->
             if (!response.isSuccessful) error(githubError("Dispatch", response))
         }
     }
@@ -131,7 +132,7 @@ class RenderClient(private val context: Context) {
                     .header("User-Agent", "YTForge")
                     .get()
                     .build()
-                http.newCall(request).execute().use { response ->
+                http.executeGitHub(request).use { response ->
                     if (!response.isSuccessful) error(githubError("Runs", response))
                     val body = json.parseToJsonElement(response.body?.string().orEmpty()).jsonObject
                     val runs = body["workflow_runs"]?.jsonArray ?: return@use
@@ -152,7 +153,7 @@ class RenderClient(private val context: Context) {
                     .header("User-Agent", "YTForge")
                     .get()
                     .build()
-                http.newCall(request).execute().use { response ->
+                http.executeGitHub(request).use { response ->
                     if (!response.isSuccessful) error(githubError("Run status", response))
                     val run = json.parseToJsonElement(response.body?.string().orEmpty()).jsonObject
                     val status = run["status"]?.jsonPrimitive?.content.orEmpty()
@@ -185,7 +186,7 @@ class RenderClient(private val context: Context) {
                 .header("User-Agent", "YTForge")
                 .get()
                 .build()
-            http.newCall(request).execute().use { response ->
+            http.executeGitHub(request).use { response ->
                 if (!response.isSuccessful) error(githubError("Artifacts", response))
                 val body = json.parseToJsonElement(response.body?.string().orEmpty()).jsonObject
                 val artifact = body["artifacts"]?.jsonArray
@@ -208,7 +209,7 @@ class RenderClient(private val context: Context) {
             .header("User-Agent", "YTForge")
             .get()
             .build()
-        http.newCall(request).execute().use { response ->
+        http.executeGitHub(request).use { response ->
             if (!response.isSuccessful) error(githubError("Download", response))
             return response.body?.bytes() ?: error("Empty render artifact.")
         }
