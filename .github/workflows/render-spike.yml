@@ -1,0 +1,61 @@
+name: Render Spike
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "render-spike/**"
+      - ".github/workflows/render-spike.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Check browsers and ffmpeg
+        run: |
+          node --version
+          npm --version
+          ffmpeg -version | head -1
+          (google-chrome --version || chromium --version || true)
+
+      - name: Install HyperFrames
+        run: |
+          npm init -y
+          npm install hyperframes@0.8.201 --no-audit --no-fund
+
+      - name: Doctor
+        run: npx hyperframes doctor || true
+
+      - name: Render 10s 720p sample
+        run: |
+          mkdir -p out
+          /usr/bin/time -v npx hyperframes render render-spike \
+            --output out/sample-720p.mp4 \
+            --fps 30 \
+            --quality draft \
+            --workers 2
+
+      - name: Inspect output
+        run: |
+          ls -lh out
+          ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate \
+            -show_entries format=duration,size -of json out/sample-720p.mp4
+
+      - name: Upload video
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyperframes-720p-spike
+          path: out/sample-720p.mp4
+          retention-days: 7
