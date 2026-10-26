@@ -6,17 +6,12 @@ import com.wahidiqubal.ytforge.data.chat.ChatMode
 import com.wahidiqubal.ytforge.data.voice.SarvamTtsClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
 import okhttp3.Request
-import java.util.concurrent.TimeUnit
 
 class ConnectionTester {
     private val chat = ChatClient()
     private val sarvam = SarvamTtsClient()
-    private val http = OkHttpClient.Builder()
-        .connectTimeout(20, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .build()
+    private val http = com.wahidiqubal.ytforge.data.github.GitHubHttp.client()
 
     suspend fun testChat(settings: ApiSettings): Result<String> = withContext(Dispatchers.IO) {
         runCatching {

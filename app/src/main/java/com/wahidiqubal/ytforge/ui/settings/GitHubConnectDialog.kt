@@ -56,6 +56,7 @@ fun GitHubConnectDialog(
     var status by remember { mutableStateOf("Preparing GitHub login…") }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(true) }
+    var attempt by remember { mutableStateOf(0) }
 
     fun openGitHub(url: String) {
         runCatching {
@@ -66,7 +67,9 @@ fun GitHubConnectDialog(
         }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(attempt) {
+        busy = true
+        error = null
         if (clientId.isBlank()) {
             error = "GitHub OAuth Client ID is missing. Add it under Advanced, or rebuild with GITHUB_OAUTH_CLIENT_ID."
             busy = false
@@ -141,18 +144,29 @@ fun GitHubConnectDialog(
                 }
                 error?.let {
                     Text(it, style = MaterialTheme.typography.bodyMedium, color = Color(0xFFFF9AA9))
+                    Text(
+                        "If DNS keeps failing, turn off VPN/Private DNS or set Private DNS to dns.google.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Muted,
+                    )
                 }
             }
         },
         confirmButton = {
             if (error != null) {
-                Button(onClick = onDismiss) { Text("Close") }
+                Button(onClick = {
+                    device = null
+                    status = "Retrying GitHub login…"
+                    error = null
+                    busy = true
+                    attempt++
+                }) { Text("Retry") }
             } else {
                 Button(onClick = {}, enabled = false) { Text("Waiting…") }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !busy) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(if (error != null) "Close" else "Cancel") }
         },
     )
 }

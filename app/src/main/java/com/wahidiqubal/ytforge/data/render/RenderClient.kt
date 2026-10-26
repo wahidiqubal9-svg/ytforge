@@ -2,6 +2,7 @@ package com.wahidiqubal.ytforge.data.render
 
 import android.content.Context
 import android.util.Base64
+import com.wahidiqubal.ytforge.data.github.GitHubHttp
 import com.wahidiqubal.ytforge.data.github.executeGitHub
 import com.wahidiqubal.ytforge.data.settings.ApiSettings
 import kotlinx.coroutines.Dispatchers
@@ -15,13 +16,11 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.io.File
 import java.io.InputStream
-import java.util.concurrent.TimeUnit
 import java.util.zip.ZipInputStream
 
 data class RenderOutput(
@@ -32,10 +31,7 @@ data class RenderOutput(
 
 class RenderClient(private val context: Context) {
     private val json = Json { ignoreUnknownKeys = true }
-    private val http = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(120, TimeUnit.SECONDS)
-        .writeTimeout(120, TimeUnit.SECONDS)
+    private val http = GitHubHttp.client().newBuilder()
         .followRedirects(true)
         .build()
 

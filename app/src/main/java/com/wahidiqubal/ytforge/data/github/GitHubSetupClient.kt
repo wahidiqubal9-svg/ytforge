@@ -3,7 +3,6 @@ package com.wahidiqubal.ytforge.data.github
 import android.content.Context
 import android.util.Base64
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
@@ -11,12 +10,10 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.net.URLEncoder
-import java.util.concurrent.TimeUnit
 
 data class GitHubSetupResult(
     val owner: String,
@@ -29,10 +26,7 @@ data class GitHubSetupResult(
 
 class GitHubSetupClient(private val context: Context) {
     private val json = Json { ignoreUnknownKeys = true }
-    private val http = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .build()
+    private val http = GitHubHttp.client()
 
     suspend fun setup(token: String, onStatus: (String) -> Unit = {}): GitHubSetupResult =
         withContext(Dispatchers.IO) {

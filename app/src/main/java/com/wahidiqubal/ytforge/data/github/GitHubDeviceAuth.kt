@@ -7,10 +7,8 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.FormBody
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.net.URLEncoder
-import java.util.concurrent.TimeUnit
 
 data class GitHubDeviceCode(
     val deviceCode: String,
@@ -30,10 +28,7 @@ data class GitHubToken(
 
 class GitHubDeviceAuth {
     private val json = Json { ignoreUnknownKeys = true }
-    private val http = OkHttpClient.Builder()
-        .connectTimeout(20, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .build()
+    private val http = GitHubHttp.client()
 
     suspend fun start(clientId: String, scopes: String = "repo workflow read:user"): GitHubDeviceCode =
         withContext(Dispatchers.IO) {
