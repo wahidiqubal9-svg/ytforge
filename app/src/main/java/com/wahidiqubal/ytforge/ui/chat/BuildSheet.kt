@@ -64,6 +64,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
@@ -78,6 +79,7 @@ import com.wahidiqubal.ytforge.data.render.RenderOutput
 import com.wahidiqubal.ytforge.data.settings.ApiSettings
 import com.wahidiqubal.ytforge.data.video.PromoProjectBuilder
 import com.wahidiqubal.ytforge.data.video.PromoSpec
+import com.wahidiqubal.ytforge.data.video.PublicLinkClient
 import com.wahidiqubal.ytforge.data.video.ThumbnailGenerator
 import com.wahidiqubal.ytforge.data.voice.SarvamTtsClient
 import com.wahidiqubal.ytforge.ui.theme.Accent
@@ -121,6 +123,9 @@ fun BuildSheet(
     var error by remember { mutableStateOf<String?>(null) }
     var result by remember { mutableStateOf<RenderOutput?>(null) }
     var useFinal by remember { mutableStateOf(false) }
+    var publicLink by remember { mutableStateOf<String?>(null) }
+    var linkBusy by remember { mutableStateOf(false) }
+    var linkError by remember { mutableStateOf<String?>(null) }
 
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(6),
@@ -496,6 +501,56 @@ fun BuildSheet(
                                     Spacer(Modifier.width(6.dp))
                                     Text("Copy metadata")
                                 }
+                            }
+                        }
+                        item {
+                            OutlinedButton(
+                                onClick = {
+                                    if (linkBusy) return@OutlinedButton
+                                    linkBusy = true
+                                    linkError = null
+                                    publicLink = null
+                                    scope.launch {
+                                        runCatching { PublicLinkClient.upload(output.video) }
+                                            .onSuccess { publicLink = it }
+                                            .onFailure { linkError = it.message ?: "Could not create link." }
+                                        linkBusy = false
+                                    }
+                                },
+                                enabled = !linkBusy,
+                            ) {
+                                if (linkBusy) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = Accent)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Uploading…")
+                                } else {
+                                    Text("Create public link")
+                                }
+                            }
+                            Text(
+                                "Optional: uploads the final MP4 to catbox.moe, a public file host.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Muted,
+                                modifier = Modifier.padding(top = 4.dp),
+                            )
+                        }
+                        publicLink?.let { link ->
+                            item {
+                                SelectionContainer {
+                                    Text(link, style = MaterialTheme.typography.bodyMedium, color = Accent)
+                                }
+                                TextButton(
+                                    onClick = {
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                        clipboard.setPrimaryClip(ClipData.newPlainText("YTForge video link", link))
+                                        Toast.makeText(context, "Link copied", Toast.LENGTH_SHORT).show()
+                                    },
+                                ) { Text("Copy link") }
+                            }
+                        }
+                        linkError?.let { message ->
+                            item {
+                                Text(message, style = MaterialTheme.typography.bodyMedium, color = Color(0xFFFF9AA9))
                             }
                         }
                     }
