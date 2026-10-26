@@ -50,11 +50,12 @@ class RenderClient(private val context: Context) {
             "Set a render repo in Settings as owner/repo."
         }
         require(token.isNotBlank()) { "Add the render GitHub token in Settings." }
+        val branch = settings.renderBranch.ifBlank { "main" }
 
         onProgress("Uploading project…")
-        upload(repo, token, jobId, projectZip)
+        upload(repo, token, branch, jobId, projectZip)
         onProgress("Starting renderer…")
-        dispatch(repo, token, jobId)
+        dispatch(repo, token, branch, jobId)
 
         onProgress("Waiting for a GitHub runner…")
         val runId = waitForRun(repo, token, jobId, onProgress)
@@ -73,10 +74,10 @@ class RenderClient(private val context: Context) {
         )
     }
 
-    private fun upload(repo: String, token: String, jobId: String, zip: ByteArray) {
+    private fun upload(repo: String, token: String, branch: String, jobId: String, zip: ByteArray) {
         val payload = buildJsonObject {
             put("message", "render $jobId")
-            put("branch", "main")
+            put("branch", branch)
             put("content", Base64.encodeToString(zip, Base64.NO_WRAP))
         }
         val request = Request.Builder()
@@ -92,9 +93,9 @@ class RenderClient(private val context: Context) {
         }
     }
 
-    private fun dispatch(repo: String, token: String, jobId: String) {
+    private fun dispatch(repo: String, token: String, branch: String, jobId: String) {
         val payload = buildJsonObject {
-            put("ref", "main")
+            put("ref", branch)
             putJsonObject("inputs") {
                 put("job_id", jobId)
             }

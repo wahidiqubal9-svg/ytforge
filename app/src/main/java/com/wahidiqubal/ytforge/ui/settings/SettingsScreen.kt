@@ -59,6 +59,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.wahidiqubal.ytforge.BuildConfig
 import com.wahidiqubal.ytforge.data.chat.ModelCatalogClient
+import com.wahidiqubal.ytforge.data.github.GitHubSetupResult
 import com.wahidiqubal.ytforge.data.render.RenderClient
 import com.wahidiqubal.ytforge.data.settings.ApiSettings
 import com.wahidiqubal.ytforge.data.settings.ConnectionTester
@@ -82,6 +83,7 @@ fun SettingsScreen(
     updateState: UpdateState,
     onBack: () -> Unit,
     onSave: (ApiSettings) -> Unit,
+    onPersist: (ApiSettings) -> Unit,
     onCheckUpdates: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -92,7 +94,11 @@ fun SettingsScreen(
     var sarvamKey by rememberSaveable { mutableStateOf(settings.sarvamKey) }
     var youtubeClientId by rememberSaveable { mutableStateOf(settings.youtubeClientId) }
     var renderRepo by rememberSaveable { mutableStateOf(settings.renderRepo) }
+    var renderBranch by rememberSaveable { mutableStateOf(settings.renderBranch) }
     var renderToken by rememberSaveable { mutableStateOf(settings.renderToken) }
+    var githubLogin by rememberSaveable { mutableStateOf(settings.githubLogin) }
+    var githubOAuthClientId by rememberSaveable { mutableStateOf(settings.githubOAuthClientId) }
+    var showGitHubConnect by remember { mutableStateOf(false) }
     var modelOptions by remember { mutableStateOf<List<String>>(emptyList()) }
     var showModels by remember { mutableStateOf(false) }
     var isFetchingModels by remember { mutableStateOf(false) }
@@ -440,8 +446,53 @@ fun SettingsScreen(
             item {
                 SectionCard(
                     title = "Render backend",
-                    subtitle = "Optional. Use any GitHub account: create a private repo and copy render-backend/.github/workflows/render.yml into it.",
+                    subtitle = "Connect GitHub once and the app creates the private repo, workflow and Actions automatically. Manual setup stays under Advanced.",
                 ) {
+                    if (renderToken.isNotBlank()) {
+                        Text(
+                            if (githubLogin.isNotBlank()) "Connected as @$githubLogin" else "GitHub token saved",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Accent,
+                        )
+                        Text(
+                            renderRepo.ifBlank { "Render repo not set" },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Muted,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { showGitHubConnect = true }) { Text("Reconnect") }
+                            OutlinedButton(
+                                onClick = {
+                                    val updated = settings.copy(renderToken = "", githubLogin = "", renderRepo = "")
+                                    renderToken = ""
+                                    githubLogin = ""
+                                    renderRepo = ""
+                                    onPersist(updated)
+                                },
+                            ) { Text("Disconnect") }
+                        }
+                    } else {
+                        Button(
+                            onClick = { showGitHubConnect = true },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text("Connect GitHub")
+                        }
+                        Text(
+                            "Log in with OTP, approve once, and setup runs automatically.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Muted,
+                            modifier = Modifier.padding(top = 6.dp),
+                        )
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "Advanced manual setup",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Ink,
+                    )
+                    Spacer(Modifier.height(6.dp))
                     OutlinedTextField(
                         value = renderRepo,
                         onValueChange = { renderRepo = it },
@@ -451,6 +502,28 @@ fun SettingsScreen(
                         supportingText = {
                             Text(
                                 "Example: your-account/ytforge-render",
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        },
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = renderBranch,
+                        onValueChange = { renderBranch = it },
+                        label = { Text("Render branch") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = githubOAuthClientId,
+                        onValueChange = { githubOAuthClientId = it },
+                        label = { Text("GitHub OAuth Client ID (developer)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        supportingText = {
+                            Text(
+                                "Leave blank if the build already includes the public Client ID.",
                                 style = MaterialTheme.typography.labelSmall,
                             )
                         },
@@ -486,7 +559,10 @@ fun SettingsScreen(
                                 youtubeClientId = youtubeClientId.trim(),
                                 githubToken = settings.githubToken,
                                 renderRepo = renderRepo.trim(),
+                                renderBranch = renderBranch.trim().ifBlank { "main" },
                                 renderToken = renderToken.trim(),
+                                githubLogin = githubLogin,
+                                githubOAuthClientId = githubOAuthClientId.trim(),
                                 videoRatio = videoRatio,
                                 videoQuality = videoQuality,
                                 previewFirst = previewFirst,
@@ -693,7 +769,10 @@ fun SettingsScreen(
                                 youtubeClientId = youtubeClientId.trim(),
                                 githubToken = settings.githubToken,
                                 renderRepo = renderRepo.trim(),
+                                renderBranch = renderBranch.trim().ifBlank { "main" },
                                 renderToken = renderToken.trim(),
+                                githubLogin = githubLogin,
+                                githubOAuthClientId = githubOAuthClientId.trim(),
                                 videoRatio = videoRatio,
                                 videoQuality = videoQuality,
                                 previewFirst = previewFirst,
@@ -710,6 +789,29 @@ fun SettingsScreen(
                 Spacer(Modifier.height(8.dp))
             }
         }
+    }
+    if (showGitHubConnect) {
+        GitHubConnectDialog(
+            clientId = BuildConfig.GITHUB_OAUTH_CLIENT_ID.ifBlank { githubOAuthClientId },
+            onConnected = { result: GitHubSetupResult, token: String, usedClientId: String ->
+                renderRepo = result.fullName
+                renderBranch = result.branch
+                renderToken = token
+                githubLogin = result.login
+                githubOAuthClientId = usedClientId
+                val updated = settings.copy(
+                    renderRepo = result.fullName,
+                    renderBranch = result.branch,
+                    renderToken = token,
+                    githubLogin = result.login,
+                    githubOAuthClientId = usedClientId,
+                )
+                onPersist(updated)
+                showGitHubConnect = false
+                renderStatus = "Connected as @${result.login}"
+            },
+            onDismiss = { showGitHubConnect = false },
+        )
     }
 }
 

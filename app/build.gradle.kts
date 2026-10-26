@@ -24,6 +24,11 @@ android {
         buildConfigField("String", "UPDATE_REPO", "\"wahidiqubal9-svg/ytforge\"")
         buildConfigField("String", "UPDATE_MANIFEST_URL", "\"https://github.com/wahidiqubal9-svg/ytforge/releases/latest/download/update.json\"")
         buildConfigField("String", "RENDER_REPO", "\"wahidiqubal9-svg/ytforge-render\"")
+        buildConfigField(
+            "String",
+            "GITHUB_OAUTH_CLIENT_ID",
+            "\"${System.getenv("GITHUB_OAUTH_CLIENT_ID") ?: ""}\"",
+        )
     }
 
     signingConfigs {

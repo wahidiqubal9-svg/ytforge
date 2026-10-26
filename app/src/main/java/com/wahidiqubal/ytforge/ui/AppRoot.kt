@@ -66,6 +66,10 @@ fun AppRoot() {
                 settings = updated
                 screen = "chat"
             },
+            onPersist = { updated ->
+                app.secureSettings.save(updated)
+                settings = updated
+            },
             onCheckUpdates = { checkUpdates(showUpToDate = true) },
         )
 
