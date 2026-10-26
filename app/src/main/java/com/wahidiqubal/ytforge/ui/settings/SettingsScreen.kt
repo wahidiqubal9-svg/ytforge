@@ -1,6 +1,8 @@
 package com.wahidiqubal.ytforge.ui.settings
 
+import android.content.Intent
 import android.widget.Toast
+import androidx.core.content.FileProvider
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -39,6 +41,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -50,6 +53,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.wahidiqubal.ytforge.BuildConfig
+import com.wahidiqubal.ytforge.data.render.RenderClient
 import com.wahidiqubal.ytforge.data.settings.ApiSettings
 import com.wahidiqubal.ytforge.data.settings.Providers
 import com.wahidiqubal.ytforge.data.update.UpdateState
@@ -59,6 +63,11 @@ import com.wahidiqubal.ytforge.ui.theme.Muted
 import com.wahidiqubal.ytforge.ui.theme.OutlineDark
 import com.wahidiqubal.ytforge.ui.theme.SurfaceCard
 import com.wahidiqubal.ytforge.ui.theme.SurfaceDeep
+import kotlinx.coroutines.launch
+import java.io.ByteArrayOutputStream
+import java.util.UUID
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 @Composable
 fun SettingsScreen(
@@ -75,8 +84,15 @@ fun SettingsScreen(
     var apiKey by rememberSaveable { mutableStateOf(settings.apiKey) }
     var sarvamKey by rememberSaveable { mutableStateOf(settings.sarvamKey) }
     var youtubeClientId by rememberSaveable { mutableStateOf(settings.youtubeClientId) }
+    var renderRepo by rememberSaveable { mutableStateOf(settings.renderRepo) }
+    var renderToken by rememberSaveable { mutableStateOf(settings.renderToken) }
     var showLlmKey by remember { mutableStateOf(false) }
     var showSarvamKey by remember { mutableStateOf(false) }
+    var showRenderToken by remember { mutableStateOf(false) }
+    var isRendering by remember { mutableStateOf(false) }
+    var renderStatus by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val renderClient = remember { RenderClient(context) }
 
     Column(
         modifier = Modifier
@@ -219,6 +235,90 @@ fun SettingsScreen(
 
             item {
                 SectionCard(
+                    title = "Render backend",
+                    subtitle = "Optional. Use any GitHub account: create a private repo and copy render-backend/.github/workflows/render.yml into it.",
+                ) {
+                    OutlinedTextField(
+                        value = renderRepo,
+                        onValueChange = { renderRepo = it },
+                        label = { Text("Render repo (owner/repo)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        supportingText = {
+                            Text(
+                                "Example: your-account/ytforge-render",
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        },
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    SecretField(
+                        value = renderToken,
+                        onValueChange = { renderToken = it },
+                        label = "Render GitHub token",
+                        visible = showRenderToken,
+                        onToggleVisible = { showRenderToken = !showRenderToken },
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Fine-grained token: Contents Read/Write + Actions Read/Write on the render repo only. " +
+                            "The token never goes to the render job.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Muted,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedButton(
+                        onClick = {
+                            if (isRendering) return@OutlinedButton
+                            isRendering = true
+                            renderStatus = "Preparing test project…"
+                            val jobId = "test-${UUID.randomUUID()}"
+                            val current = ApiSettings(
+                                providerId = providerId,
+                                baseUrl = baseUrl.trim(),
+                                model = model.trim(),
+                                apiKey = apiKey.trim(),
+                                sarvamKey = sarvamKey.trim(),
+                                youtubeClientId = youtubeClientId.trim(),
+                                githubToken = settings.githubToken,
+                                renderRepo = renderRepo.trim(),
+                                renderToken = renderToken.trim(),
+                            )
+                            scope.launch {
+                                runCatching {
+                                    renderClient.render(current, sampleProjectZip(), jobId) { status ->
+                                        renderStatus = status
+                                    }
+                                }.onSuccess { output ->
+                                    renderStatus = "Opening test render…"
+                                    val uri = FileProvider.getUriForFile(
+                                        context,
+                                        "${context.packageName}.fileprovider",
+                                        output.video,
+                                    )
+                                    val intent = Intent(Intent.ACTION_VIEW)
+                                        .setDataAndType(uri, "video/mp4")
+                                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    context.startActivity(Intent.createChooser(intent, "Open test render"))
+                                }.onFailure { error ->
+                                    renderStatus = error.message ?: "Test render failed."
+                                }
+                                isRendering = false
+                            }
+                        },
+                        enabled = renderRepo.isNotBlank() && renderToken.isNotBlank() && !isRendering,
+                    ) {
+                        Text(if (isRendering) "Rendering…" else "Test render")
+                    }
+                    renderStatus?.let { status ->
+                        Spacer(Modifier.height(8.dp))
+                        Text(status, style = MaterialTheme.typography.labelSmall, color = if (isRendering) Muted else Ink)
+                    }
+                }
+            }
+
+            item {
+                SectionCard(
                     title = "Updates",
                     subtitle = "The APK updates from GitHub Releases. The first install is manual.",
                 ) {
@@ -301,6 +401,8 @@ fun SettingsScreen(
                                 sarvamKey = sarvamKey.trim(),
                                 youtubeClientId = youtubeClientId.trim(),
                                 githubToken = settings.githubToken,
+                                renderRepo = renderRepo.trim(),
+                                renderToken = renderToken.trim(),
                             ),
                         )
                         Toast.makeText(context, "Saved on this device", Toast.LENGTH_SHORT).show()
@@ -362,4 +464,56 @@ private fun SecretField(
             }
         },
     )
+}
+
+
+private fun sampleProjectZip(): ByteArray {
+    val html = """
+        <!doctype html>
+        <html lang="en" data-resolution="portrait">
+        <head>
+          <meta charset="UTF-8" />
+          <meta name="viewport" content="width=720, height=1280" />
+          <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+          <style>
+            * { margin:0; padding:0; box-sizing:border-box; }
+            html, body { width:720px; height:1280px; overflow:hidden; background:#07111f; font-family:system-ui,sans-serif; }
+            #root { position:relative; width:720px; height:1280px; overflow:hidden;
+              background:radial-gradient(900px 700px at 80% 10%, #14395c 0%, #07111f 60%, #030812 100%); }
+            .clip { position:absolute; inset:0; visibility:hidden; display:flex; align-items:center; justify-content:center; padding:72px; text-align:center; }
+            h1 { color:#f7fbff; font-size:78px; line-height:.98; letter-spacing:-.04em; font-weight:800; }
+            h1 span { color:#3ee6b0; }
+            p { color:#8aa0b8; font-size:28px; line-height:1.35; margin-top:24px; }
+            .kicker { color:#3ee6b0; font-size:22px; letter-spacing:.22em; text-transform:uppercase; font-weight:700; margin-bottom:20px; }
+          </style>
+        </head>
+        <body>
+          <div id="root" data-composition-id="main" data-start="0" data-duration="5" data-width="720" data-height="1280">
+            <div id="s1" class="clip" data-start="0" data-duration="2.4" data-track-index="0">
+              <div><div id="k" class="kicker">YTForge</div><h1 id="t1">Render <span>online.</span><br/>Publish anywhere.</h1></div>
+            </div>
+            <div id="s2" class="clip" data-start="2.4" data-duration="2.6" data-track-index="1">
+              <div><h1 id="t2" style="font-size:66px">720p preview<br/><span>ready.</span></h1><p id="p2">HyperFrames on GitHub Actions.</p></div>
+            </div>
+          </div>
+          <script>
+            const tl = gsap.timeline({ paused: true });
+            tl.fromTo("#k", {opacity:0,y:20},{opacity:1,y:0,duration:.4,ease:"power3.out"},0.1);
+            tl.fromTo("#t1", {opacity:0,y:40},{opacity:1,y:0,duration:.6,ease:"power4.out"},0.25);
+            tl.fromTo("#t2", {opacity:0,scale:.95},{opacity:1,scale:1,duration:.6,ease:"power3.out"},2.55);
+            tl.fromTo("#p2", {opacity:0},{opacity:1,duration:.4},2.9);
+            window.__timelines = window.__timelines || {};
+            window.__timelines.main = tl;
+            tl.seek(0);
+          </script>
+        </body>
+        </html>
+    """.trimIndent()
+    val bytes = ByteArrayOutputStream()
+    ZipOutputStream(bytes).use { zip ->
+        zip.putNextEntry(ZipEntry("index.html"))
+        zip.write(html.toByteArray(Charsets.UTF_8))
+        zip.closeEntry()
+    }
+    return bytes.toByteArray()
 }

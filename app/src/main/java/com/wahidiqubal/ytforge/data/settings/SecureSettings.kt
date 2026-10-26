@@ -21,6 +21,8 @@ data class ApiSettings(
     val sarvamKey: String = "",
     val youtubeClientId: String = "",
     val githubToken: String = "",
+    val renderRepo: String = "",
+    val renderToken: String = "",
 )
 
 data class ProviderPreset(

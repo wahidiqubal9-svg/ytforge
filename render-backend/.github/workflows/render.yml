@@ -1,0 +1,83 @@
+name: YTForge Render
+
+on:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: "YTForge job id"
+        required: true
+        type: string
+
+run-name: ytforge-render-${{ inputs.job_id }}
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: ytforge-render-${{ inputs.job_id }}
+  cancel-in-progress: false
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          ffmpeg -version | head -1
+          ffprobe -version | head -1
+
+      - name: Install HyperFrames
+        run: |
+          npm init -y
+          npm install hyperframes@0.8.201 --no-audit --no-fund
+
+      - name: Prepare project
+        run: |
+          test -f "jobs/${{ inputs.job_id }}/project.zip"
+          rm -rf work out
+          mkdir -p work out
+          unzip -q "jobs/${{ inputs.job_id }}/project.zip" -d work
+          test -f work/index.html
+          ls -la work | head -30
+
+      - name: Render 720p
+        run: |
+          npx hyperframes render work \
+            --output out/video-720p.mp4 \
+            --fps 30 \
+            --quality draft \
+            --workers 2
+
+      - name: Make preview and thumbnail
+        run: |
+          ffmpeg -y -i out/video-720p.mp4 \
+            -vf "scale=360:-2" \
+            -c:v libx264 -preset veryfast -crf 28 \
+            -c:a aac -b:a 96k \
+            out/preview-360p.mp4
+          ffmpeg -y -ss 1 -i out/video-720p.mp4 -frames:v 1 -q:v 2 out/thumbnail.jpg
+          ls -lh out
+          ffprobe -v error \
+            -show_entries stream=codec_name,width,height,r_frame_rate \
+            -show_entries format=duration,size \
+            -of json out/video-720p.mp4
+
+      - name: Upload render
+        uses: actions/upload-artifact@v4
+        with:
+          name: render-${{ inputs.job_id }}
+          path: |
+            out/video-720p.mp4
+            out/preview-360p.mp4
+            out/thumbnail.jpg
+          retention-days: 2
