@@ -21,13 +21,13 @@ object GitHubHttp {
     private val dohBootstrap = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
-        .dns { hostname ->
-            when (hostname) {
+        .dns(object : Dns {
+            override fun lookup(hostname: String): List<InetAddress> = when (hostname) {
                 "cloudflare-dns.com" -> listOf(InetAddress.getByName("1.1.1.1"))
                 "dns.google" -> listOf(InetAddress.getByName("8.8.8.8"))
                 else -> Dns.SYSTEM.lookup(hostname)
             }
-        }
+        })
         .build()
 
     private class CacheEntry(val addresses: List<InetAddress>, val expiresAt: Long)
