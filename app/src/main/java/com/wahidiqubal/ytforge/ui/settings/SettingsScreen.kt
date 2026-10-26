@@ -42,6 +42,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -99,6 +100,7 @@ fun SettingsScreen(
     var githubLogin by rememberSaveable { mutableStateOf(settings.githubLogin) }
     var githubOAuthClientId by rememberSaveable { mutableStateOf(settings.githubOAuthClientId) }
     var showGitHubConnect by remember { mutableStateOf(false) }
+    var showAdvanced by remember { mutableStateOf(false) }
     var modelOptions by remember { mutableStateOf<List<String>>(emptyList()) }
     var showModels by remember { mutableStateOf(false) }
     var isFetchingModels by remember { mutableStateOf(false) }
@@ -487,12 +489,10 @@ fun SettingsScreen(
                         )
                     }
                     Spacer(Modifier.height(12.dp))
-                    Text(
-                        "Advanced manual setup",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = Ink,
-                    )
-                    Spacer(Modifier.height(6.dp))
+                    TextButton(onClick = { showAdvanced = !showAdvanced }) {
+                        Text(if (showAdvanced) "Hide advanced manual setup" else "Advanced manual setup", color = Muted)
+                    }
+                    if (showAdvanced) {
                     OutlinedTextField(
                         value = renderRepo,
                         onValueChange = { renderRepo = it },
@@ -514,6 +514,7 @@ fun SettingsScreen(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
+                    if (BuildConfig.GITHUB_OAUTH_CLIENT_ID.isBlank()) {
                     Spacer(Modifier.height(10.dp))
                     OutlinedTextField(
                         value = githubOAuthClientId,
@@ -528,6 +529,7 @@ fun SettingsScreen(
                             )
                         },
                     )
+                    }
                     Spacer(Modifier.height(10.dp))
                     SecretField(
                         value = renderToken,
@@ -543,6 +545,7 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.labelSmall,
                         color = Muted,
                     )
+                    }
                     Spacer(Modifier.height(10.dp))
                     OutlinedButton(
                         onClick = {
