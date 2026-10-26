@@ -1,5 +1,6 @@
 package com.wahidiqubal.ytforge.data.chat
 
+import android.util.Base64
 import com.wahidiqubal.ytforge.data.settings.ApiSettings
 import com.wahidiqubal.ytforge.data.settings.ProviderKind
 import com.wahidiqubal.ytforge.data.settings.Providers
@@ -22,10 +23,17 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 
+data class ChatAttachment(
+    val path: String,
+    val mimeType: String = "image/jpeg",
+    val name: String = "image.jpg",
+)
+
 data class ChatMessage(
     val role: String,
     val content: String,
     val mode: ChatMode = ChatMode.PLAN,
+    val attachments: List<ChatAttachment> = emptyList(),
 )
 
 enum class ChatMode { PLAN, BUILD }
@@ -50,7 +58,7 @@ class ChatClient {
         if (settings.model.isBlank()) error("Add a model name in Settings.")
 
         when (preset.kind) {
-            ProviderKind.OPENAI -> openAiCompatible(base, settings, mode, messages)
+            ProviderKind.OPENAI -> openAiCompatible(base, settings, mode, messages, preset.supportsVision)
             ProviderKind.ANTHROPIC -> anthropic(base, settings, mode, messages)
         }
     }
@@ -60,6 +68,7 @@ class ChatClient {
         settings: ApiSettings,
         mode: ChatMode,
         messages: List<ChatMessage>,
+        supportsVision: Boolean,
     ): String {
         val payload = buildJsonObject {
             put("model", settings.model)
@@ -72,7 +81,29 @@ class ChatClient {
                 messages.forEach { message ->
                     add(buildJsonObject {
                         put("role", message.role)
-                        put("content", message.content)
+                        val images = message.attachments.filter {
+                            supportsVision && message.role == "user"
+                        }
+                        if (images.isNotEmpty()) {
+                            putJsonArray("content") {
+                                add(buildJsonObject {
+                                    put("type", "text")
+                                    put("text", message.content.ifBlank { "Use the attached images as video assets." })
+                                })
+                                images.forEach { image ->
+                                    val data = imageBase64(image.path) ?: return@forEach
+                                    val mime = image.mimeType.ifBlank { "image/jpeg" }
+                                    add(buildJsonObject {
+                                        put("type", "image_url")
+                                        putJsonObject("image_url") {
+                                            put("url", "data:$mime;base64,$data")
+                                        }
+                                    })
+                                }
+                            }
+                        } else {
+                            put("content", message.content.ifBlank { "Use the attached images as video assets." })
+                        }
                     })
                 }
             }
@@ -113,7 +144,28 @@ class ChatClient {
                 messages.forEach { message ->
                     add(buildJsonObject {
                         put("role", if (message.role == "assistant") "assistant" else "user")
-                        put("content", message.content)
+                        val images = message.attachments.filter { message.role == "user" }
+                        if (images.isNotEmpty()) {
+                            putJsonArray("content") {
+                                add(buildJsonObject {
+                                    put("type", "text")
+                                    put("text", message.content.ifBlank { "Use the attached images as video assets." })
+                                })
+                                images.forEach { image ->
+                                    val data = imageBase64(image.path) ?: return@forEach
+                                    add(buildJsonObject {
+                                        put("type", "image")
+                                        putJsonObject("source") {
+                                            put("type", "base64")
+                                            put("media_type", image.mimeType.ifBlank { "image/jpeg" })
+                                            put("data", data)
+                                        }
+                                    })
+                                }
+                            }
+                        } else {
+                            put("content", message.content.ifBlank { "Use the attached images as video assets." })
+                        }
                     })
                 }
             }
@@ -162,6 +214,9 @@ class ChatClient {
             before uploading to YouTube. Never claim an upload happened until the app confirms it.
         """.trimIndent()
     }
+
+    private fun imageBase64(path: String): String? =
+        runCatching { Base64.encodeToString(java.io.File(path).readBytes(), Base64.NO_WRAP) }.getOrNull()
 
     private fun shortError(body: String): String {
         if (body.isBlank()) return "empty response"

@@ -1,8 +1,13 @@
 package com.wahidiqubal.ytforge.ui.chat
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,7 +31,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Lightbulb
+import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.rounded.Send
@@ -49,12 +56,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wahidiqubal.ytforge.YtForgeApp
+import com.wahidiqubal.ytforge.data.chat.AttachmentStore
+import com.wahidiqubal.ytforge.data.chat.ChatAttachment
 import com.wahidiqubal.ytforge.data.chat.ChatMessage
 import com.wahidiqubal.ytforge.data.chat.ChatMode
 import com.wahidiqubal.ytforge.data.settings.ApiSettings
@@ -66,7 +76,9 @@ import com.wahidiqubal.ytforge.ui.theme.OutlineDark
 import com.wahidiqubal.ytforge.ui.theme.SurfaceCard
 import com.wahidiqubal.ytforge.ui.theme.SurfaceDeep
 import com.wahidiqubal.ytforge.ui.theme.SurfaceRaised
+import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
+import java.io.File
 
 @Composable
 fun ChatScreen(
@@ -95,6 +107,32 @@ fun ChatScreen(
     val mode = runCatching { ChatMode.valueOf(modeName) }.getOrDefault(ChatMode.PLAN)
     val listState = rememberLazyListState()
     val provider = Providers.byId(settings.providerId)
+    val attachments = remember { mutableStateListOf<ChatAttachment>() }
+    var isImporting by remember { mutableStateOf(false) }
+
+    val imagePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(6),
+    ) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        val remaining = 6 - attachments.size
+        if (remaining <= 0) {
+            error = "You can attach up to 6 images."
+            return@rememberLauncherForActivityResult
+        }
+        scope.launch {
+            isImporting = true
+            runCatching {
+                uris.take(remaining).forEachIndexed { index, uri ->
+                    AttachmentStore.import(context, uri, attachments.size + index)?.let { attachment ->
+                        attachments += attachment
+                    }
+                }
+            }.onFailure { failure ->
+                error = failure.message ?: "Could not import that image."
+            }
+            isImporting = false
+        }
+    }
 
     LaunchedEffect(messages.size, isSending) {
         val index = if (isSending) messages.size else messages.lastIndex
@@ -103,14 +141,17 @@ fun ChatScreen(
 
     fun send() {
         val text = input.trim()
-        if (text.isEmpty() || isSending) return
+        if ((text.isEmpty() && attachments.isEmpty()) || isSending || isImporting) return
         if (settings.apiKey.isBlank()) {
             error = "Add your AI provider key in Settings first."
             return
         }
         error = null
+        val outgoing = attachments.toList()
+        attachments.clear()
         input = ""
-        messages += ChatMessage("user", text, mode)
+        val content = text.ifBlank { "Use the attached images as video assets." }
+        messages += ChatMessage("user", content, mode, outgoing)
         isSending = true
         scope.launch {
             runCatching {
@@ -182,6 +223,19 @@ fun ChatScreen(
             mode = mode,
             onModeChange = { modeName = it.name },
             isSending = isSending,
+            isImporting = isImporting,
+            attachments = attachments,
+            visionSupported = provider.supportsVision,
+            onPickImages = {
+                if (attachments.size >= 6) {
+                    error = "You can attach up to 6 images."
+                } else {
+                    imagePicker.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                    )
+                }
+            },
+            onRemoveImage = { attachment -> attachments.remove(attachment) },
             onSend = ::send,
             onOpenSettings = onOpenSettings,
         )
@@ -326,11 +380,32 @@ private fun MessageBubble(message: ChatMessage) {
                 contentColor = Color(0xFF04110C),
                 modifier = Modifier.fillMaxWidth(0.86f),
             ) {
-                Text(
-                    message.content,
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
-                )
+                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                    if (message.attachments.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            message.attachments.forEach { attachment ->
+                                AsyncImage(
+                                    model = File(attachment.path),
+                                    contentDescription = attachment.name,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(82.dp)
+                                        .clip(RoundedCornerShape(10.dp)),
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    Text(
+                        message.content,
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
             }
         }
     } else {
@@ -346,11 +421,7 @@ private fun MessageBubble(message: ChatMessage) {
                 ModeBadge(message.mode)
             }
             Spacer(Modifier.height(6.dp))
-            Text(
-                message.content,
-                style = MaterialTheme.typography.bodyLarge,
-                color = Ink,
-            )
+            MarkdownText(message.content)
         }
     }
 }
@@ -395,6 +466,11 @@ private fun Composer(
     mode: ChatMode,
     onModeChange: (ChatMode) -> Unit,
     isSending: Boolean,
+    isImporting: Boolean,
+    attachments: List<ChatAttachment>,
+    visionSupported: Boolean,
+    onPickImages: () -> Unit,
+    onRemoveImage: (ChatAttachment) -> Unit,
     onSend: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
@@ -412,6 +488,45 @@ private fun Composer(
             border = BorderStroke(1.dp, OutlineDark),
         ) {
             Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                if (attachments.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        attachments.forEach { attachment ->
+                            Box(modifier = Modifier.size(62.dp)) {
+                                AsyncImage(
+                                    model = File(attachment.path),
+                                    contentDescription = attachment.name,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(RoundedCornerShape(9.dp)),
+                                )
+                                Surface(
+                                    shape = CircleShape,
+                                    color = Color(0xCC07111F),
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(2.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.Close,
+                                        contentDescription = "Remove ${attachment.name}",
+                                        tint = Ink,
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .clickable { onRemoveImage(attachment) }
+                                            .padding(2.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
                 BasicTextField(
                     value = input,
                     onValueChange = onInputChange,
@@ -444,6 +559,26 @@ private fun Composer(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    IconButton(
+                        onClick = onPickImages,
+                        enabled = !isImporting && attachments.size < 6,
+                        modifier = Modifier.size(34.dp),
+                    ) {
+                        if (isImporting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(17.dp),
+                                strokeWidth = 2.dp,
+                                color = Accent,
+                            )
+                        } else {
+                            Icon(
+                                Icons.Outlined.PhotoLibrary,
+                                contentDescription = "Add images",
+                                tint = if (attachments.size < 6) Accent else Muted,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    }
                     ModeSwitch(mode = mode, onModeChange = onModeChange)
                     Spacer(Modifier.weight(1f))
                     if (isSending) {
@@ -453,14 +588,15 @@ private fun Composer(
                             color = Accent,
                         )
                     } else {
+                        val canSend = (input.isNotBlank() || attachments.isNotEmpty()) && !isImporting
                         Surface(
                             shape = CircleShape,
-                            color = if (input.isBlank()) SurfaceRaised else Accent,
-                            contentColor = if (input.isBlank()) Muted else Color(0xFF04110C),
+                            color = if (canSend) Accent else SurfaceRaised,
+                            contentColor = if (canSend) Color(0xFF04110C) else Muted,
                         ) {
                             IconButton(
                                 onClick = onSend,
-                                enabled = input.isNotBlank(),
+                                enabled = canSend,
                                 modifier = Modifier.size(38.dp),
                             ) {
                                 Icon(Icons.Rounded.Send, contentDescription = "Send", modifier = Modifier.size(18.dp))
@@ -477,7 +613,12 @@ private fun Composer(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                if (mode == ChatMode.PLAN) "Plan drafts. Nothing renders yet." else "Build will render after each step.",
+                when {
+                    attachments.isNotEmpty() && !visionSupported ->
+                        "DeepSeek is text-only — images stay attached as video assets."
+                    mode == ChatMode.PLAN -> "Plan drafts. Nothing renders yet."
+                    else -> "Build will render after each step."
+                },
                 style = MaterialTheme.typography.labelSmall,
                 color = Muted,
                 modifier = Modifier.weight(1f),

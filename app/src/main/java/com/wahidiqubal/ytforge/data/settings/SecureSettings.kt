@@ -32,6 +32,7 @@ data class ProviderPreset(
     val model: String,
     val kind: ProviderKind,
     val hint: String,
+    val supportsVision: Boolean = false,
 )
 
 enum class ProviderKind { OPENAI, ANTHROPIC }
@@ -45,6 +46,7 @@ object Providers {
             model = "deepseek-chat",
             kind = ProviderKind.OPENAI,
             hint = "OpenAI-compatible",
+            supportsVision = false,
         ),
         ProviderPreset(
             id = "openai",
@@ -53,6 +55,7 @@ object Providers {
             model = "gpt-4o-mini",
             kind = ProviderKind.OPENAI,
             hint = "ChatGPT models",
+            supportsVision = true,
         ),
         ProviderPreset(
             id = "claude",
@@ -61,6 +64,7 @@ object Providers {
             model = "claude-3-5-sonnet-latest",
             kind = ProviderKind.ANTHROPIC,
             hint = "Anthropic Messages API",
+            supportsVision = true,
         ),
         ProviderPreset(
             id = "openrouter",
@@ -69,6 +73,7 @@ object Providers {
             model = "openai/gpt-4o-mini",
             kind = ProviderKind.OPENAI,
             hint = "Any model via one key",
+            supportsVision = true,
         ),
         ProviderPreset(
             id = "gemini",
@@ -77,6 +82,7 @@ object Providers {
             model = "gemini-2.0-flash",
             kind = ProviderKind.OPENAI,
             hint = "OpenAI-compatible endpoint",
+            supportsVision = true,
         ),
         ProviderPreset(
             id = "custom",
@@ -85,6 +91,7 @@ object Providers {
             model = "",
             kind = ProviderKind.OPENAI,
             hint = "Any OpenAI-compatible API",
+            supportsVision = false,
         ),
     )
 
