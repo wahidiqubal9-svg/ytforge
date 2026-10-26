@@ -3,4 +3,5 @@
     <cache-path name="updates" path="updates/" />
     <files-path name="projects" path="projects/" />
     <files-path name="renders" path="renders/" />
+    <files-path name="thumbnails" path="thumbnails/" />
 </paths>

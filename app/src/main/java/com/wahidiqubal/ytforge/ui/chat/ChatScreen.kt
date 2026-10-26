@@ -319,6 +319,7 @@ fun ChatScreen(
             },
             lastUserMessage = messages.lastOrNull { it.role == "user" }?.content.orEmpty(),
             initialProject = buildProject,
+            onProjectChange = { updated -> buildProject = updated },
             onDismiss = { showReview = false },
         )
     }

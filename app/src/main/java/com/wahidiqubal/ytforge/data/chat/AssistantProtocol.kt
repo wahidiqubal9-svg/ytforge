@@ -31,6 +31,7 @@ data class BuildProject(
     val tags: String = "",
     val ratio: String = "9:16",
     val language: String = "hi-IN",
+    val thumbnailPath: String? = null,
 )
 
 data class ParsedReply(

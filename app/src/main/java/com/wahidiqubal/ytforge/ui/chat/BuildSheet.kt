@@ -99,6 +99,7 @@ fun BuildSheet(
     initialImages: List<ChatAttachment>,
     lastUserMessage: String,
     initialProject: BuildProject? = null,
+    onProjectChange: (BuildProject) -> Unit = {},
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -121,6 +122,10 @@ fun BuildSheet(
     var thumbnailBusy by remember { mutableStateOf(false) }
     var thumbnailError by remember { mutableStateOf<String?>(null) }
     var thumbnailVariant by remember { mutableStateOf(0) }
+    var customThumbnail by remember {
+        mutableStateOf(initialProject?.thumbnailPath?.let(::File)?.takeIf { it.isFile })
+    }
+    var thumbnailImporting by remember { mutableStateOf(false) }
     var step by rememberSaveable { mutableStateOf(0) }
     var isBuilding by remember { mutableStateOf(false) }
     var isImporting by remember { mutableStateOf(false) }
@@ -146,6 +151,28 @@ fun BuildSheet(
                 }
             }.onFailure { error = it.message ?: "Could not import image." }
             isImporting = false
+        }
+    }
+
+    val thumbnailPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia(),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            thumbnailImporting = true
+            thumbnailError = null
+            runCatching {
+                val attachment = AttachmentStore.import(context, uri, 0)
+                    ?: throw IllegalStateException("Could not read that image.")
+                ThumbnailGenerator.normalize(context, attachment.path)
+                    ?: throw IllegalStateException("Could not prepare that thumbnail.")
+            }.onSuccess { file ->
+                customThumbnail = file
+                safeProject?.copy(thumbnailPath = file.absolutePath)?.let(onProjectChange)
+            }.onFailure {
+                thumbnailError = it.message ?: "Could not import thumbnail."
+            }
+            thumbnailImporting = false
         }
     }
 
@@ -276,11 +303,47 @@ fun BuildSheet(
                             0 -> {
                                 item {
                                     ThumbnailPreview(
-                                        thumbnail = thumbnail,
-                                        busy = thumbnailBusy,
+                                        thumbnail = customThumbnail ?: thumbnail,
+                                        busy = thumbnailBusy || thumbnailImporting,
                                         error = thumbnailError,
                                         onRegenerate = { generateThumbnail(nextVariant = true) },
                                     )
+                                    Text(
+                                        if (customThumbnail != null) "Using your uploaded thumbnail"
+                                        else "Generated style: ${ThumbnailGenerator.styleName(thumbnailVariant)}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Muted,
+                                    )
+                                }
+                                item {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    ) {
+                                        OutlinedButton(
+                                            onClick = {
+                                                thumbnailPicker.launch(
+                                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                                                )
+                                            },
+                                            enabled = !thumbnailImporting && !thumbnailBusy,
+                                        ) {
+                                            if (thumbnailImporting) {
+                                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = Accent)
+                                            } else {
+                                                Icon(Icons.Outlined.PhotoLibrary, contentDescription = null, modifier = Modifier.size(17.dp))
+                                                Spacer(Modifier.width(5.dp))
+                                                Text("Use my thumbnail")
+                                            }
+                                        }
+                                        if (customThumbnail != null) {
+                                            TextButton(onClick = {
+                                                customThumbnail = null
+                                                safeProject?.copy(thumbnailPath = null)?.let(onProjectChange)
+                                            }) { Text("Use generated") }
+                                        }
+                                    }
                                 }
                                 item {
                                     Row(
@@ -449,8 +512,8 @@ fun BuildSheet(
                             5 -> {
                                 item {
                                     ThumbnailPreview(
-                                        thumbnail = thumbnail,
-                                        busy = thumbnailBusy,
+                                        thumbnail = customThumbnail ?: thumbnail,
+                                        busy = thumbnailBusy || thumbnailImporting,
                                         error = thumbnailError,
                                         onRegenerate = { generateThumbnail(nextVariant = true) },
                                     )
@@ -482,6 +545,25 @@ fun BuildSheet(
                         }
                         item {
                             VideoFilePlayer(file = file, aspect = aspect)
+                        }
+                        val resultThumbnail = customThumbnail ?: thumbnail
+                        if (resultThumbnail != null) {
+                            item {
+                                AsyncImage(
+                                    model = resultThumbnail,
+                                    contentDescription = "YouTube thumbnail",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .aspectRatio(16f / 9f)
+                                        .clip(RoundedCornerShape(12.dp)),
+                                )
+                                Text(
+                                    if (customThumbnail != null) "Your thumbnail · 1280×720" else "Generated thumbnail · 1280×720",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Muted,
+                                )
+                            }
                         }
                         if (output.preview != null) {
                             item {
