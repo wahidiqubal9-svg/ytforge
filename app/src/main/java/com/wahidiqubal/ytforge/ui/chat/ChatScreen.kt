@@ -33,7 +33,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Lightbulb
-import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Settings
@@ -44,7 +43,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -65,7 +63,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wahidiqubal.ytforge.YtForgeApp
+import com.wahidiqubal.ytforge.data.chat.AssistantProtocol
+import com.wahidiqubal.ytforge.data.chat.AskOption
+import com.wahidiqubal.ytforge.data.chat.AskPrompt
 import com.wahidiqubal.ytforge.data.chat.AttachmentStore
+import com.wahidiqubal.ytforge.data.chat.BuildProject
 import com.wahidiqubal.ytforge.data.chat.ChatAttachment
 import com.wahidiqubal.ytforge.data.chat.ChatMessage
 import com.wahidiqubal.ytforge.data.chat.ChatMode
@@ -106,7 +108,9 @@ fun ChatScreen(
     var modeName by rememberSaveable { mutableStateOf(ChatMode.PLAN.name) }
     var isSending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var showBuild by remember { mutableStateOf(false) }
+    var pendingAsk by remember { mutableStateOf<AskPrompt?>(null) }
+    var buildProject by remember { mutableStateOf<BuildProject?>(null) }
+    var showReview by remember { mutableStateOf(false) }
     val mode = runCatching { ChatMode.valueOf(modeName) }.getOrDefault(ChatMode.PLAN)
     val listState = rememberLazyListState()
     val provider = Providers.byId(settings.providerId)
@@ -142,17 +146,19 @@ fun ChatScreen(
         if (index >= 0) listState.animateScrollToItem(index)
     }
 
-    fun send() {
-        val text = input.trim()
-        if ((text.isEmpty() && attachments.isEmpty()) || isSending || isImporting) return
+    fun sendMessage(
+        text: String,
+        outgoing: List<ChatAttachment> = emptyList(),
+        clearProject: Boolean = true,
+    ) {
+        if ((text.isBlank() && outgoing.isEmpty()) || isSending || isImporting) return
         if (settings.apiKey.isBlank()) {
             error = "Add your AI provider key in Settings first."
             return
         }
         error = null
-        val outgoing = attachments.toList()
-        attachments.clear()
-        input = ""
+        if (clearProject) buildProject = null
+        pendingAsk = null
         val content = text.ifBlank { "Use the attached images as video assets." }
         messages += ChatMessage("user", content, mode, outgoing)
         isSending = true
@@ -160,12 +166,31 @@ fun ChatScreen(
             runCatching {
                 app.chatClient.complete(settings, mode, messages.toList())
             }.onSuccess { reply ->
-                messages += ChatMessage("assistant", reply, mode)
+                val parsed = AssistantProtocol.parse(reply)
+                val display = parsed.displayText.ifBlank {
+                    when {
+                        parsed.ask != null -> "Choose an option below."
+                        parsed.project != null -> "I've prepared the editable project. Review it below."
+                        else -> "…"
+                    }
+                }
+                messages += ChatMessage("assistant", display, mode)
+                if (parsed.ask != null) pendingAsk = parsed.ask
+                if (parsed.project != null) buildProject = parsed.project
             }.onFailure { failure ->
                 error = failure.message ?: "The provider request failed."
             }
             isSending = false
         }
+    }
+
+    fun send() {
+        val text = input.trim()
+        if ((text.isEmpty() && attachments.isEmpty()) || isSending || isImporting) return
+        val outgoing = attachments.toList()
+        attachments.clear()
+        input = ""
+        sendMessage(text, outgoing)
     }
 
     Column(
@@ -220,6 +245,16 @@ fun ChatScreen(
             }
         }
 
+
+        val project = buildProject
+        if (project != null) {
+            FinalBuildCard(
+                project = project,
+                imageCount = attachments.size + messages.lastOrNull { it.attachments.isNotEmpty() }?.attachments.orEmpty().size,
+                onReview = { showReview = true },
+            )
+        }
+
         Composer(
             input = input,
             onInputChange = { input = it },
@@ -239,20 +274,31 @@ fun ChatScreen(
                 }
             },
             onRemoveImage = { attachment -> attachments.remove(attachment) },
-            onBuild = { showBuild = true },
             onSend = ::send,
             onOpenSettings = onOpenSettings,
         )
     }
 
-    if (showBuild) {
+    pendingAsk?.let { ask ->
+        AskSheet(
+            prompt = ask,
+            onSelect = { option: AskOption ->
+                pendingAsk = null
+                sendMessage(option.label, emptyList())
+            },
+            onDismiss = { pendingAsk = null },
+        )
+    }
+
+    if (showReview && buildProject != null) {
         BuildSheet(
             settings = settings,
             initialImages = attachments.ifEmpty {
                 messages.lastOrNull { it.attachments.isNotEmpty() }?.attachments.orEmpty()
             },
             lastUserMessage = messages.lastOrNull { it.role == "user" }?.content.orEmpty(),
-            onDismiss = { showBuild = false },
+            initialProject = buildProject,
+            onDismiss = { showReview = false },
         )
     }
 }
@@ -486,7 +532,6 @@ private fun Composer(
     visionSupported: Boolean,
     onPickImages: () -> Unit,
     onRemoveImage: (ChatAttachment) -> Unit,
-    onBuild: () -> Unit,
     onSend: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
@@ -596,22 +641,6 @@ private fun Composer(
                         }
                     }
                     ModeSwitch(mode = mode, onModeChange = onModeChange)
-                    if (mode == ChatMode.BUILD) {
-                        TextButton(
-                            onClick = onBuild,
-                            enabled = !isSending && !isImporting,
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                        ) {
-                            Icon(
-                                Icons.Outlined.Movie,
-                                contentDescription = "Build video",
-                                modifier = Modifier.size(16.dp),
-                                tint = Accent,
-                            )
-                            Spacer(Modifier.width(3.dp))
-                            Text("Build", color = Accent, style = MaterialTheme.typography.labelMedium)
-                        }
-                    }
                     Spacer(Modifier.weight(1f))
                     if (isSending) {
                         CircularProgressIndicator(

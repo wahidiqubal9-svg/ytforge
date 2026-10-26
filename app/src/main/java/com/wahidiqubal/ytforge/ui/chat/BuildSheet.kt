@@ -48,6 +48,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,6 +59,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.ImeAction
@@ -69,12 +71,14 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.FileProvider
 import coil.compose.AsyncImage
 import com.wahidiqubal.ytforge.data.chat.AttachmentStore
+import com.wahidiqubal.ytforge.data.chat.BuildProject
 import com.wahidiqubal.ytforge.data.chat.ChatAttachment
 import com.wahidiqubal.ytforge.data.render.RenderClient
 import com.wahidiqubal.ytforge.data.render.RenderOutput
 import com.wahidiqubal.ytforge.data.settings.ApiSettings
 import com.wahidiqubal.ytforge.data.video.PromoProjectBuilder
 import com.wahidiqubal.ytforge.data.video.PromoSpec
+import com.wahidiqubal.ytforge.data.video.ThumbnailGenerator
 import com.wahidiqubal.ytforge.data.voice.SarvamTtsClient
 import com.wahidiqubal.ytforge.ui.theme.Accent
 import com.wahidiqubal.ytforge.ui.theme.Ink
@@ -91,6 +95,7 @@ fun BuildSheet(
     settings: ApiSettings,
     initialImages: List<ChatAttachment>,
     lastUserMessage: String,
+    initialProject: BuildProject? = null,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -98,15 +103,18 @@ fun BuildSheet(
     val renderClient = remember { RenderClient(context) }
     val sarvam = remember { SarvamTtsClient() }
 
-    var headline by rememberSaveable { mutableStateOf("Special Offer") }
-    var subheadline by rememberSaveable { mutableStateOf("") }
-    var code by rememberSaveable { mutableStateOf("") }
-    var cta by rememberSaveable { mutableStateOf("") }
-    var narration by rememberSaveable { mutableStateOf("") }
-    var title by rememberSaveable { mutableStateOf("") }
-    var description by rememberSaveable { mutableStateOf("") }
-    var tags by rememberSaveable { mutableStateOf("") }
+    var headline by rememberSaveable { mutableStateOf(initialProject?.headline?.ifBlank { "Special Offer" } ?: "Special Offer") }
+    var subheadline by rememberSaveable { mutableStateOf(initialProject?.subheadline.orEmpty()) }
+    var code by rememberSaveable { mutableStateOf(initialProject?.code.orEmpty()) }
+    var cta by rememberSaveable { mutableStateOf(initialProject?.cta.orEmpty()) }
+    var narration by rememberSaveable { mutableStateOf(initialProject?.narration.orEmpty()) }
+    var title by rememberSaveable { mutableStateOf(initialProject?.title.orEmpty()) }
+    var description by rememberSaveable { mutableStateOf(initialProject?.description.orEmpty()) }
+    var tags by rememberSaveable { mutableStateOf(initialProject?.tags.orEmpty()) }
+    var ratio by rememberSaveable { mutableStateOf(initialProject?.ratio?.takeIf { it in setOf("9:16", "16:9", "1:1") } ?: settings.videoRatio) }
     var images by remember { mutableStateOf(initialImages) }
+    var thumbnail by remember { mutableStateOf<File?>(null) }
+    var thumbnailBusy by remember { mutableStateOf(false) }
     var isBuilding by remember { mutableStateOf(false) }
     var isImporting by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
@@ -130,6 +138,23 @@ fun BuildSheet(
             isImporting = false
         }
     }
+
+    fun generateThumbnail() {
+        scope.launch {
+            thumbnailBusy = true
+            thumbnail = ThumbnailGenerator.generate(
+                context = context,
+                imagePath = images.firstOrNull()?.path,
+                headline = headline,
+                subheadline = subheadline,
+                code = code,
+                cta = cta,
+            )
+            thumbnailBusy = false
+        }
+    }
+
+    LaunchedEffect(Unit) { generateThumbnail() }
 
     fun build() {
         if (isBuilding) return
@@ -158,7 +183,7 @@ fun BuildSheet(
                     code = code,
                     cta = cta,
                     narration = script,
-                    ratio = settings.videoRatio,
+                    ratio = ratio,
                     imagePaths = images.map { it.path },
                     title = title.ifBlank { headline },
                     description = description,
@@ -206,9 +231,9 @@ fun BuildSheet(
                     Icon(Icons.Outlined.Movie, contentDescription = null, tint = Accent)
                     Spacer(Modifier.width(9.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Build video", style = MaterialTheme.typography.titleLarge, color = Ink)
+                        Text("Review & Final Build", style = MaterialTheme.typography.titleLarge, color = Ink)
                         Text(
-                            "${settings.videoRatio} · 720p · ${settings.maxDurationSec}s max",
+                            "$ratio · 720p · ${settings.maxDurationSec}s max",
                             style = MaterialTheme.typography.labelSmall,
                             color = Muted,
                         )
@@ -227,10 +252,50 @@ fun BuildSheet(
                     if (result == null) {
                         item {
                             Text(
-                                "Attach the image, paste the voiceover script, then build. The app generates Sarvam audio and renders on your GitHub backend.",
+                                "Generated from your chat and image. Edit anything, regenerate the thumbnail, then tap Final Build.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = Muted,
                             )
+                        }
+                        item {
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = SurfaceCard,
+                                border = BorderStroke(1.dp, OutlineDark),
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+                                    if (thumbnail != null) {
+                                        AsyncImage(
+                                            model = thumbnail,
+                                            contentDescription = "Generated thumbnail",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize(),
+                                        )
+                                    } else {
+                                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                            Text(if (thumbnailBusy) "Generating thumbnail…" else "Thumbnail", color = Muted)
+                                        }
+                                    }
+                                }
+                            }
+                            Spacer(Modifier.height(6.dp))
+                            OutlinedButton(onClick = { generateThumbnail() }, enabled = !thumbnailBusy) {
+                                Text("Regenerate thumbnail")
+                            }
+                        }
+                        item {
+                            Text("Aspect ratio", style = MaterialTheme.typography.labelLarge, color = Ink)
+                            Spacer(Modifier.height(6.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf("9:16", "16:9", "1:1").forEach { value ->
+                                    if (ratio == value) {
+                                        Button(onClick = { ratio = value }) { Text(value) }
+                                    } else {
+                                        OutlinedButton(onClick = { ratio = value }) { Text(value) }
+                                    }
+                                }
+                            }
                         }
                         item {
                             OutlinedTextField(
@@ -380,7 +445,7 @@ fun BuildSheet(
                     } else {
                         val output = result!!
                         val file = if (!useFinal && output.preview != null) output.preview else output.video
-                        val aspect = when (settings.videoRatio) {
+                        val aspect = when (ratio) {
                             "16:9" -> 16f / 9f
                             "1:1" -> 1f
                             else -> 9f / 16f
@@ -455,7 +520,7 @@ fun BuildSheet(
                                 Spacer(Modifier.width(8.dp))
                                 Text("Rendering…")
                             } else {
-                                Text("Build")
+                                Text("Final Build")
                             }
                         }
                     } else {

@@ -61,6 +61,7 @@ import com.wahidiqubal.ytforge.BuildConfig
 import com.wahidiqubal.ytforge.data.chat.ModelCatalogClient
 import com.wahidiqubal.ytforge.data.render.RenderClient
 import com.wahidiqubal.ytforge.data.settings.ApiSettings
+import com.wahidiqubal.ytforge.data.settings.ConnectionTester
 import com.wahidiqubal.ytforge.data.settings.Providers
 import com.wahidiqubal.ytforge.data.update.UpdateState
 import com.wahidiqubal.ytforge.ui.theme.Accent
@@ -96,6 +97,13 @@ fun SettingsScreen(
     var showModels by remember { mutableStateOf(false) }
     var isFetchingModels by remember { mutableStateOf(false) }
     var modelError by remember { mutableStateOf<String?>(null) }
+    var chatTest by remember { mutableStateOf<String?>(null) }
+    var sarvamTest by remember { mutableStateOf<String?>(null) }
+    var renderTest by remember { mutableStateOf<String?>(null) }
+    var youtubeTest by remember { mutableStateOf<String?>(null) }
+    var chatTesting by remember { mutableStateOf(false) }
+    var sarvamTesting by remember { mutableStateOf(false) }
+    var renderTesting by remember { mutableStateOf(false) }
     var videoRatio by rememberSaveable { mutableStateOf(settings.videoRatio) }
     var videoQuality by rememberSaveable { mutableStateOf(settings.videoQuality) }
     var previewFirst by rememberSaveable { mutableStateOf(settings.previewFirst) }
@@ -109,6 +117,7 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
     val renderClient = remember { RenderClient(context) }
     val modelCatalog = remember { ModelCatalogClient() }
+    val connectionTester = remember { ConnectionTester() }
 
     fun fetchModels() {
         if (isFetchingModels) return
@@ -519,6 +528,88 @@ fun SettingsScreen(
 
             item {
                 SectionCard(
+                    title = "Test connections",
+                    subtitle = "Verify each service separately before building. The full render test is under Render backend.",
+                ) {
+                    ConnectionRow(
+                        label = "Chat / planning",
+                        status = chatTest,
+                        testing = chatTesting,
+                        onTest = {
+                            chatTesting = true
+                            chatTest = null
+                            scope.launch {
+                                val current = settings.copy(
+                                    providerId = providerId,
+                                    baseUrl = baseUrl.trim(),
+                                    model = model.trim(),
+                                    apiKey = apiKey.trim(),
+                                )
+                                chatTest = connectionTester.testChat(current).fold(
+                                    onSuccess = { it },
+                                    onFailure = { it.message ?: "Chat test failed" },
+                                )
+                                chatTesting = false
+                            }
+                        },
+                    )
+                    ConnectionRow(
+                        label = "Sarvam voice",
+                        status = sarvamTest,
+                        testing = sarvamTesting,
+                        onTest = {
+                            sarvamTesting = true
+                            sarvamTest = null
+                            scope.launch {
+                                val current = settings.copy(sarvamKey = sarvamKey.trim())
+                                sarvamTest = connectionTester.testSarvam(current).fold(
+                                    onSuccess = { it },
+                                    onFailure = { it.message ?: "Sarvam test failed" },
+                                )
+                                sarvamTesting = false
+                            }
+                        },
+                    )
+                    ConnectionRow(
+                        label = "GitHub render",
+                        status = renderTest,
+                        testing = renderTesting,
+                        onTest = {
+                            renderTesting = true
+                            renderTest = null
+                            scope.launch {
+                                val current = settings.copy(
+                                    renderRepo = renderRepo.trim(),
+                                    renderToken = renderToken.trim(),
+                                )
+                                renderTest = connectionTester.testRender(current).fold(
+                                    onSuccess = { it },
+                                    onFailure = { it.message ?: "Render test failed" },
+                                )
+                                renderTesting = false
+                            }
+                        },
+                    )
+                    ConnectionRow(
+                        label = "YouTube OAuth",
+                        status = youtubeTest,
+                        testing = false,
+                        onTest = {
+                            youtubeTest = connectionTester.testYouTube(
+                                settings.copy(youtubeClientId = youtubeClientId.trim()),
+                            ).getOrNull()
+                        },
+                    )
+                    Text(
+                        "YouTube automatic upload is not wired yet. Share / YouTube remains the working path.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Muted,
+                    )
+                }
+            }
+
+            item {
+                SectionCard(
                     title = "Updates",
                     subtitle = "The APK updates from GitHub Releases. The first install is manual.",
                 ) {
@@ -721,4 +812,37 @@ private fun sampleProjectZip(): ByteArray {
         zip.closeEntry()
     }
     return bytes.toByteArray()
+}
+
+
+@Composable
+private fun ConnectionRow(
+    label: String,
+    status: String?,
+    testing: Boolean,
+    onTest: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.bodyMedium, color = Ink)
+            if (status != null) {
+                val ok = status.startsWith("Chat OK") || status.startsWith("Voice OK") || status.startsWith("Render repo OK")
+                Text(
+                    status,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (ok) Accent else if (status.startsWith("Not")) Muted else Color(0xFFFF9AA9),
+                )
+            }
+        }
+        if (testing) {
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Accent)
+        } else {
+            OutlinedButton(onClick = onTest) { Text("Test") }
+        }
+    }
 }
