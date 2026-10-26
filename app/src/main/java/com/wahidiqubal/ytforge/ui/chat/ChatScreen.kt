@@ -33,6 +33,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Lightbulb
+import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Settings
@@ -43,6 +44,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -104,6 +106,7 @@ fun ChatScreen(
     var modeName by rememberSaveable { mutableStateOf(ChatMode.PLAN.name) }
     var isSending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var showBuild by remember { mutableStateOf(false) }
     val mode = runCatching { ChatMode.valueOf(modeName) }.getOrDefault(ChatMode.PLAN)
     val listState = rememberLazyListState()
     val provider = Providers.byId(settings.providerId)
@@ -236,8 +239,20 @@ fun ChatScreen(
                 }
             },
             onRemoveImage = { attachment -> attachments.remove(attachment) },
+            onBuild = { showBuild = true },
             onSend = ::send,
             onOpenSettings = onOpenSettings,
+        )
+    }
+
+    if (showBuild) {
+        BuildSheet(
+            settings = settings,
+            initialImages = attachments.ifEmpty {
+                messages.lastOrNull { it.attachments.isNotEmpty() }?.attachments.orEmpty()
+            },
+            lastUserMessage = messages.lastOrNull { it.role == "user" }?.content.orEmpty(),
+            onDismiss = { showBuild = false },
         )
     }
 }
@@ -471,6 +486,7 @@ private fun Composer(
     visionSupported: Boolean,
     onPickImages: () -> Unit,
     onRemoveImage: (ChatAttachment) -> Unit,
+    onBuild: () -> Unit,
     onSend: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
@@ -580,6 +596,22 @@ private fun Composer(
                         }
                     }
                     ModeSwitch(mode = mode, onModeChange = onModeChange)
+                    if (mode == ChatMode.BUILD) {
+                        TextButton(
+                            onClick = onBuild,
+                            enabled = !isSending && !isImporting,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                        ) {
+                            Icon(
+                                Icons.Outlined.Movie,
+                                contentDescription = "Build video",
+                                modifier = Modifier.size(16.dp),
+                                tint = Accent,
+                            )
+                            Spacer(Modifier.width(3.dp))
+                            Text("Build", color = Accent, style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
                     Spacer(Modifier.weight(1f))
                     if (isSending) {
                         CircularProgressIndicator(
