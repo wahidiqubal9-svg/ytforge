@@ -79,6 +79,7 @@ import com.wahidiqubal.ytforge.data.render.RenderClient
 import com.wahidiqubal.ytforge.data.render.RenderOutput
 import com.wahidiqubal.ytforge.data.settings.ApiSettings
 import com.wahidiqubal.ytforge.data.video.PromoProjectBuilder
+import com.wahidiqubal.ytforge.data.video.VideoStyles
 import com.wahidiqubal.ytforge.data.video.PromoSpec
 import com.wahidiqubal.ytforge.data.video.PublicLinkClient
 import com.wahidiqubal.ytforge.data.video.ThumbnailGenerator
@@ -117,6 +118,7 @@ fun BuildSheet(
     var description by rememberSaveable { mutableStateOf(safeProject?.description.orEmpty()) }
     var tags by rememberSaveable { mutableStateOf(safeProject?.tags.orEmpty()) }
     var ratio by rememberSaveable { mutableStateOf(safeProject?.ratio?.takeIf { it in setOf("9:16", "16:9", "1:1") } ?: settings.videoRatio) }
+    var videoStyle by rememberSaveable { mutableStateOf(safeProject?.videoStyle ?: "kinetic") }
     var images by remember { mutableStateOf(initialImages) }
     var thumbnail by remember { mutableStateOf<File?>(null) }
     var thumbnailBusy by remember { mutableStateOf(false) }
@@ -232,6 +234,7 @@ fun BuildSheet(
                     title = title.ifBlank { headline },
                     description = description,
                     tags = tags,
+                    videoStyle = videoStyle,
                 )
                 val zip = PromoProjectBuilder.build(spec, voice)
                 status = "Uploading to the render backend…"
@@ -410,6 +413,29 @@ fun BuildSheet(
                                         }
                                     }
                                 }
+                                item {
+                                    Text("Video style", style = MaterialTheme.typography.labelLarge, color = Ink)
+                                    Text(VideoStyles.byId(videoStyle).description, style = MaterialTheme.typography.labelSmall, color = Muted)
+                                    Spacer(Modifier.height(6.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    ) {
+                                        VideoStyles.all.forEach { style ->
+                                            if (videoStyle == style.id) {
+                                                Button(onClick = {
+                                                    videoStyle = style.id
+                                                    safeProject?.copy(videoStyle = style.id)?.let(onProjectChange)
+                                                }) { Text(style.name) }
+                                            } else {
+                                                OutlinedButton(onClick = {
+                                                    videoStyle = style.id
+                                                    safeProject?.copy(videoStyle = style.id)?.let(onProjectChange)
+                                                }) { Text(style.name) }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                             1 -> {
                                 item {
@@ -519,7 +545,7 @@ fun BuildSheet(
                                     )
                                 }
                                 item {
-                                    Text("$ratio · 720p · ${narration.length} script characters · ${images.size} image(s)", style = MaterialTheme.typography.bodyMedium, color = Ink)
+                                    Text("${VideoStyles.byId(videoStyle).name} · $ratio · 720p · ${narration.length} script characters · ${images.size} image(s)", style = MaterialTheme.typography.bodyMedium, color = Ink)
                                     Text("Title: ${title.ifBlank { headline }}", style = MaterialTheme.typography.bodyMedium, color = Muted)
                                     if (code.isNotBlank()) Text("Code: $code", style = MaterialTheme.typography.bodyMedium, color = Muted)
                                     if (cta.isNotBlank()) Text("CTA: $cta", style = MaterialTheme.typography.bodyMedium, color = Muted)
@@ -811,7 +837,7 @@ private fun ThumbnailPreview(
 }
 
 private fun stepTitle(step: Int): String = when (step) {
-    0 -> "1 · Thumbnail"
+    0 -> "1 · Thumbnail & style"
     1 -> "2 · Headline"
     2 -> "3 · Subheadline & offer"
     3 -> "4 · Voiceover script"
@@ -820,7 +846,7 @@ private fun stepTitle(step: Int): String = when (step) {
 }
 
 private fun stepHint(step: Int): String = when (step) {
-    0 -> "Generate the thumbnail first. Approve it, then move on."
+    0 -> "Generate the thumbnail and choose the video style, then move on."
     1 -> "The main line on the video and thumbnail."
     2 -> "Supporting line, coupon code and call to action."
     3 -> "The exact script Sarvam will speak. Duration follows this."

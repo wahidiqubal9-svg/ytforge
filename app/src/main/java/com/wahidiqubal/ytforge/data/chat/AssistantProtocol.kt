@@ -32,6 +32,7 @@ data class BuildProject(
     val ratio: String = "9:16",
     val language: String = "hi-IN",
     val thumbnailPath: String? = null,
+    val videoStyle: String = "kinetic",
 )
 
 data class ParsedReply(

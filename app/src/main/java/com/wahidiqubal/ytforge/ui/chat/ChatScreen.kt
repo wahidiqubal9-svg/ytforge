@@ -33,6 +33,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Lightbulb
+import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Settings
@@ -43,6 +44,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -74,6 +76,7 @@ import com.wahidiqubal.ytforge.data.chat.ChatMessage
 import com.wahidiqubal.ytforge.data.chat.ChatMode
 import com.wahidiqubal.ytforge.data.chat.ChatSession
 import com.wahidiqubal.ytforge.data.chat.SessionStore
+import com.wahidiqubal.ytforge.data.chat.TextSanitizer
 import com.wahidiqubal.ytforge.data.settings.ApiSettings
 import com.wahidiqubal.ytforge.data.settings.Providers
 import com.wahidiqubal.ytforge.ui.theme.Accent
@@ -117,6 +120,7 @@ fun ChatScreen(
     var input by rememberSaveable { mutableStateOf("") }
     var modeName by rememberSaveable { mutableStateOf(savedSession.mode.ifBlank { ChatMode.PLAN.name }) }
     var isSending by remember { mutableStateOf(false) }
+    var isGeneratingProject by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var pendingAsk by remember { mutableStateOf(savedSession.pendingAsk) }
     var buildProject by remember { mutableStateOf(savedSession.project?.sanitized()) }
@@ -214,6 +218,39 @@ fun ChatScreen(
         sendMessage(text, outgoing)
     }
 
+    fun startBuild() {
+        if (isGeneratingProject) return
+        buildProject?.let {
+            showReview = true
+            return
+        }
+        if (settings.apiKey.isBlank()) {
+            error = "Add your AI provider key in Settings first."
+            return
+        }
+        error = null
+        isGeneratingProject = true
+        scope.launch {
+            val instruction = ChatMessage(
+                "user",
+                "Prepare the final video project now from our conversation. Return exactly one <project> JSON block with headline, subheadline, code, cta, narration, title, description, tags, ratio, language. Plain text only, no HTML/CSS/JS.",
+                ChatMode.BUILD,
+            )
+            runCatching {
+                val reply = app.chatClient.complete(settings, ChatMode.BUILD, messages.toList() + instruction)
+                AssistantProtocol.parse(reply).project
+            }.onSuccess { project ->
+                buildProject = project ?: draftProject(messages)
+                showReview = true
+            }.onFailure { failure ->
+                buildProject = draftProject(messages)
+                showReview = true
+                error = "Using a draft project: ${failure.message ?: "provider did not return JSON"}"
+            }
+            isGeneratingProject = false
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -295,6 +332,8 @@ fun ChatScreen(
                 }
             },
             onRemoveImage = { attachment -> attachments.remove(attachment) },
+            onBuild = ::startBuild,
+            isGeneratingProject = isGeneratingProject,
             onSend = ::send,
             onOpenSettings = onOpenSettings,
         )
@@ -554,6 +593,8 @@ private fun Composer(
     visionSupported: Boolean,
     onPickImages: () -> Unit,
     onRemoveImage: (ChatAttachment) -> Unit,
+    onBuild: () -> Unit,
+    isGeneratingProject: Boolean,
     onSend: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
@@ -663,6 +704,17 @@ private fun Composer(
                         }
                     }
                     ModeSwitch(mode = mode, onModeChange = onModeChange)
+                    if (mode == ChatMode.BUILD) {
+                        TextButton(onClick = onBuild, enabled = !isGeneratingProject) {
+                            if (isGeneratingProject) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = Accent)
+                            } else {
+                                Icon(Icons.Outlined.Movie, contentDescription = null, tint = Accent, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Build", color = Accent, style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
+                    }
                     Spacer(Modifier.weight(1f))
                     if (isSending) {
                         CircularProgressIndicator(
@@ -767,4 +819,29 @@ private fun ModeOption(
             Text(label, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
         }
     }
+}
+
+
+private fun draftProject(messages: List<ChatMessage>): BuildProject {
+    val lastUser = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
+    val lastAssistant = messages.lastOrNull { it.role == "assistant" }?.content.orEmpty()
+    val cleanAssistant = TextSanitizer.multiline(lastAssistant)
+    val headline = TextSanitizer.short(lastUser).ifBlank { "Special Offer" }.take(90)
+    val subtitle = TextSanitizer.short(
+        cleanAssistant.lineSequence().firstOrNull { it.isNotBlank() && !it.startsWith("#") }.orEmpty(),
+    ).ifBlank { "A limited-time offer worth checking out." }
+    val narration = cleanAssistant.ifBlank { lastUser }.ifBlank { headline }.take(2500)
+    return BuildProject(
+        headline = headline,
+        subheadline = subtitle,
+        code = "",
+        cta = "",
+        narration = narration,
+        title = headline,
+        description = cleanAssistant.take(1200),
+        tags = "",
+        ratio = "9:16",
+        language = "hi-IN",
+        videoStyle = "kinetic",
+    )
 }
