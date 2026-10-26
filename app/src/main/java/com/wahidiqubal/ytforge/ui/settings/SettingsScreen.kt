@@ -25,7 +25,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.Button
@@ -88,6 +88,7 @@ fun SettingsScreen(
     onCheckUpdates: () -> Unit,
 ) {
     val context = LocalContext.current
+    val modelCatalog = remember { ModelCatalogClient() }
     var providerId by rememberSaveable { mutableStateOf(settings.providerId) }
     var baseUrl by rememberSaveable { mutableStateOf(settings.baseUrl) }
     var model by rememberSaveable { mutableStateOf(settings.model) }
@@ -101,7 +102,7 @@ fun SettingsScreen(
     var githubOAuthClientId by rememberSaveable { mutableStateOf(settings.githubOAuthClientId) }
     var showGitHubConnect by remember { mutableStateOf(false) }
     var showAdvanced by remember { mutableStateOf(false) }
-    var modelOptions by remember { mutableStateOf<List<String>>(emptyList()) }
+    var modelOptions by remember { mutableStateOf(modelCatalog.fallback(settings.providerId)) }
     var showModels by remember { mutableStateOf(false) }
     var isFetchingModels by remember { mutableStateOf(false) }
     var modelError by remember { mutableStateOf<String?>(null) }
@@ -124,7 +125,6 @@ fun SettingsScreen(
     var renderStatus by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val renderClient = remember { RenderClient(context) }
-    val modelCatalog = remember { ModelCatalogClient() }
     val connectionTester = remember { ConnectionTester() }
 
     fun fetchModels() {
@@ -196,7 +196,7 @@ fun SettingsScreen(
                                 selected = providerId == preset.id,
                                 onClick = {
                                     providerId = preset.id
-                                    modelOptions = emptyList()
+                                    modelOptions = modelCatalog.fallback(preset.id)
                                     showModels = false
                                     modelError = null
                                     if (preset.id != "custom") {
@@ -232,15 +232,17 @@ fun SettingsScreen(
                         visible = showLlmKey,
                         onToggleVisible = { showLlmKey = !showLlmKey },
                     )
-                    Spacer(Modifier.height(10.dp))
-                    OutlinedTextField(
-                        value = baseUrl,
-                        onValueChange = { baseUrl = it },
-                        label = { Text("Base URL") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                    )
+                    if (providerId == "custom") {
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedTextField(
+                            value = baseUrl,
+                            onValueChange = { baseUrl = it },
+                            label = { Text("Base URL") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                        )
+                    }
                     Spacer(Modifier.height(10.dp))
                     Box {
                         OutlinedTextField(
@@ -253,7 +255,12 @@ fun SettingsScreen(
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                             trailingIcon = {
-                                IconButton(onClick = { fetchModels() }, enabled = !isFetchingModels) {
+                                IconButton(
+                                    onClick = {
+                                        if (modelOptions.isEmpty()) fetchModels() else showModels = true
+                                    },
+                                    enabled = !isFetchingModels,
+                                ) {
                                     if (isFetchingModels) {
                                         CircularProgressIndicator(
                                             modifier = Modifier.size(18.dp),
@@ -262,8 +269,8 @@ fun SettingsScreen(
                                         )
                                     } else {
                                         Icon(
-                                            Icons.Outlined.Refresh,
-                                            contentDescription = "Fetch models",
+                                            Icons.Outlined.ArrowDropDown,
+                                            contentDescription = "Choose model",
                                             tint = Accent,
                                         )
                                     }
@@ -271,7 +278,11 @@ fun SettingsScreen(
                             },
                             supportingText = {
                                 Text(
-                                    modelError ?: "${Providers.byId(providerId).hint} · Tap refresh to load models.",
+                                    modelError ?: when {
+                                        modelOptions.isNotEmpty() -> "${modelOptions.size} models available"
+                                        providerId == "custom" -> "Tap the arrow to load models"
+                                        else -> "Tap the arrow to load models"
+                                    },
                                     style = MaterialTheme.typography.labelSmall,
                                     color = if (modelError != null) Color(0xFFFF9AA9) else Muted,
                                 )
@@ -291,24 +302,12 @@ fun SettingsScreen(
                                     },
                                 )
                             }
-                        }
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        OutlinedButton(
-                            onClick = { fetchModels() },
-                            enabled = !isFetchingModels && apiKey.isNotBlank(),
-                        ) {
-                            Text("Fetch models")
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        if (modelError != null) {
-                            Text(
-                                "Using suggested models",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Muted,
+                            DropdownMenuItem(
+                                text = { Text("Refresh models from API", color = Accent) },
+                                onClick = {
+                                    showModels = false
+                                    fetchModels()
+                                },
                             )
                         }
                     }
