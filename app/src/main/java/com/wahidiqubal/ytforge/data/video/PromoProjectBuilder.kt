@@ -1,5 +1,6 @@
 package com.wahidiqubal.ytforge.data.video
 
+import com.wahidiqubal.ytforge.data.chat.TextSanitizer
 import com.wahidiqubal.ytforge.data.voice.VoiceResult
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -64,10 +65,15 @@ object PromoProjectBuilder {
         duration: Double,
         hasImage: Boolean,
     ): String {
-        val headline = spec.headline.ifBlank { "Special Offer" }.escape().replace("\n", "<br/>")
-        val subheadline = spec.subheadline.ifBlank { "A limited-time deal worth checking out." }.escape().replace("\n", "<br/>")
-        val code = spec.code.trim().escape()
-        val cta = spec.cta.ifBlank { "Tap the link for details." }.escape().replace("\n", "<br/>")
+        val headline = TextSanitizer.short(spec.headline.ifBlank { "Special Offer" }).escape()
+        val headlineWords = headline.split(Regex("\\s+"))
+            .filter { it.isNotBlank() }
+            .joinToString(" ") { "<span class=\"word\">$it</span>" }
+        val subheadline = TextSanitizer.short(spec.subheadline.ifBlank { "A limited-time deal worth checking out." })
+            .escape()
+            .replace("\n", "<br/>")
+        val code = TextSanitizer.coupon(spec.code)
+        val cta = TextSanitizer.short(spec.cta.ifBlank { "Tap the link for details." }).escape()
         val codeBlock = if (code.isBlank()) "" else """
             <div id="code" class="code">
               <span class="code-label">USE CODE</span>
@@ -102,6 +108,7 @@ object PromoProjectBuilder {
                 .fallback { background:radial-gradient(circle at 70% 10%, #582E9C 0%, #1b1233 48%, #07111f 100%); }
                 .scrim { position:absolute; inset:0; background:linear-gradient(180deg, rgba(3,8,18,.10) 0%, rgba(3,8,18,.30) 45%, rgba(3,8,18,.92) 100%); }
                 .content { position:absolute; left:6%; right:6%; bottom:6.5%; color:#fff; }
+                .word { display:inline-block; }
                 .kicker { color:#3EE6B0; font-size:clamp(14px, 1.7vh, 22px); font-weight:800; letter-spacing:.20em; text-transform:uppercase; margin-bottom:2.4vh; }
                 h1 { font-size:$font; line-height:.98; letter-spacing:-.045em; max-width:92%; font-weight:900; text-shadow:0 4px 28px rgba(0,0,0,.42); }
                 .sub { color:#e5edf7; font-size:clamp(16px, 2.1vh, 30px); line-height:1.35; margin-top:2.2vh; max-width:88%; text-shadow:0 2px 18px rgba(0,0,0,.45); }
@@ -118,7 +125,7 @@ object PromoProjectBuilder {
                 <div class="scrim"></div>
                 <div class="content">
                   <div id="kicker" class="kicker">SPECIAL OFFER</div>
-                  <h1 id="headline">$headline</h1>
+                  <h1 id="headline">$headlineWords</h1>
                   <div id="sub" class="sub">$subheadline</div>
                   $codeBlock
                   $ctaBlock
@@ -129,10 +136,10 @@ object PromoProjectBuilder {
                 const tl = gsap.timeline({ paused: true });
                 tl.fromTo("#bg", { scale: 1.06 }, { scale: 1, duration: $seconds, ease: "none" }, 0);
                 tl.fromTo("#kicker", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: .5, ease: "power3.out" }, .1);
-                tl.fromTo("#headline", { opacity: 0, y: 34 }, { opacity: 1, y: 0, duration: .7, ease: "power4.out" }, .24);
+                tl.fromTo(".word", { opacity: 0, y: 34 }, { opacity: 1, y: 0, duration: .55, stagger: .055, ease: "power4.out" }, .24);
                 tl.fromTo("#sub", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: .55, ease: "power3.out" }, .52);
-                ${if (code.isBlank()) "" else """tl.fromTo("#code", { opacity: 0, y: 22 }, { opacity: 1, y: 0, duration: .55, ease: "power3.out" }, .78);"""}
-                tl.fromTo("#cta", { opacity: 0 }, { opacity: 1, duration: .6 }, $ctaAtText);
+                ${if (code.isBlank()) "" else """tl.fromTo("#code", { opacity: 0, y: 24, scale: .9 }, { opacity: 1, y: 0, scale: 1, duration: .5, ease: "back.out(1.5)" }, .78);"""}
+                tl.fromTo("#cta", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: .55, ease: "power3.out" }, $ctaAtText);
                 window.__timelines = window.__timelines || {};
                 window.__timelines.main = tl;
                 tl.seek(0);

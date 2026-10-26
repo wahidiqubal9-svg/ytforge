@@ -74,6 +74,7 @@ import coil.compose.AsyncImage
 import com.wahidiqubal.ytforge.data.chat.AttachmentStore
 import com.wahidiqubal.ytforge.data.chat.BuildProject
 import com.wahidiqubal.ytforge.data.chat.ChatAttachment
+import com.wahidiqubal.ytforge.data.chat.sanitized
 import com.wahidiqubal.ytforge.data.render.RenderClient
 import com.wahidiqubal.ytforge.data.render.RenderOutput
 import com.wahidiqubal.ytforge.data.settings.ApiSettings
@@ -105,15 +106,16 @@ fun BuildSheet(
     val renderClient = remember { RenderClient(context) }
     val sarvam = remember { SarvamTtsClient() }
 
-    var headline by rememberSaveable { mutableStateOf(initialProject?.headline?.ifBlank { "Special Offer" } ?: "Special Offer") }
-    var subheadline by rememberSaveable { mutableStateOf(initialProject?.subheadline.orEmpty()) }
-    var code by rememberSaveable { mutableStateOf(initialProject?.code.orEmpty()) }
-    var cta by rememberSaveable { mutableStateOf(initialProject?.cta.orEmpty()) }
-    var narration by rememberSaveable { mutableStateOf(initialProject?.narration.orEmpty()) }
-    var title by rememberSaveable { mutableStateOf(initialProject?.title.orEmpty()) }
-    var description by rememberSaveable { mutableStateOf(initialProject?.description.orEmpty()) }
-    var tags by rememberSaveable { mutableStateOf(initialProject?.tags.orEmpty()) }
-    var ratio by rememberSaveable { mutableStateOf(initialProject?.ratio?.takeIf { it in setOf("9:16", "16:9", "1:1") } ?: settings.videoRatio) }
+    val safeProject = initialProject?.sanitized()
+    var headline by rememberSaveable { mutableStateOf(safeProject?.headline?.ifBlank { "Special Offer" } ?: "Special Offer") }
+    var subheadline by rememberSaveable { mutableStateOf(safeProject?.subheadline.orEmpty()) }
+    var code by rememberSaveable { mutableStateOf(safeProject?.code.orEmpty()) }
+    var cta by rememberSaveable { mutableStateOf(safeProject?.cta.orEmpty()) }
+    var narration by rememberSaveable { mutableStateOf(safeProject?.narration.orEmpty()) }
+    var title by rememberSaveable { mutableStateOf(safeProject?.title.orEmpty()) }
+    var description by rememberSaveable { mutableStateOf(safeProject?.description.orEmpty()) }
+    var tags by rememberSaveable { mutableStateOf(safeProject?.tags.orEmpty()) }
+    var ratio by rememberSaveable { mutableStateOf(safeProject?.ratio?.takeIf { it in setOf("9:16", "16:9", "1:1") } ?: settings.videoRatio) }
     var images by remember { mutableStateOf(initialImages) }
     var thumbnail by remember { mutableStateOf<File?>(null) }
     var thumbnailBusy by remember { mutableStateOf(false) }
@@ -178,9 +180,6 @@ fun BuildSheet(
             runCatching {
                 status = "Generating Sarvam voiceover…"
                 val voice = sarvam.synthesize(settings.sarvamKey, script)
-                if (voice.durationMs > settings.maxDurationSec * 1000L + 1000L) {
-                    throw IllegalStateException("Voiceover is ${voice.durationMs / 1000}s, above your ${settings.maxDurationSec}s limit. Shorten the script.")
-                }
                 status = "Preparing video project…"
                 val spec = PromoSpec(
                     headline = headline,
@@ -238,7 +237,7 @@ fun BuildSheet(
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Review & Final Build", style = MaterialTheme.typography.titleLarge, color = Ink)
                         Text(
-                            "$ratio · 720p · ${settings.maxDurationSec}s max",
+                            "$ratio · 720p · duration follows the script",
                             style = MaterialTheme.typography.labelSmall,
                             color = Muted,
                         )

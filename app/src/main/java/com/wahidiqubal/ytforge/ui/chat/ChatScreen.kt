@@ -66,11 +66,14 @@ import com.wahidiqubal.ytforge.YtForgeApp
 import com.wahidiqubal.ytforge.data.chat.AssistantProtocol
 import com.wahidiqubal.ytforge.data.chat.AskOption
 import com.wahidiqubal.ytforge.data.chat.AskPrompt
+import com.wahidiqubal.ytforge.data.chat.sanitized
 import com.wahidiqubal.ytforge.data.chat.AttachmentStore
 import com.wahidiqubal.ytforge.data.chat.BuildProject
 import com.wahidiqubal.ytforge.data.chat.ChatAttachment
 import com.wahidiqubal.ytforge.data.chat.ChatMessage
 import com.wahidiqubal.ytforge.data.chat.ChatMode
+import com.wahidiqubal.ytforge.data.chat.ChatSession
+import com.wahidiqubal.ytforge.data.chat.SessionStore
 import com.wahidiqubal.ytforge.data.settings.ApiSettings
 import com.wahidiqubal.ytforge.data.settings.Providers
 import com.wahidiqubal.ytforge.ui.theme.Accent
@@ -94,22 +97,29 @@ fun ChatScreen(
     val context = LocalContext.current
     val app = context.applicationContext as YtForgeApp
     val scope = rememberCoroutineScope()
+    val sessionStore = remember { SessionStore(context) }
+    val savedSession = remember { sessionStore.load() }
     val messages = remember {
-        mutableStateListOf(
-            ChatMessage(
-                role = "assistant",
-                content = "Tell me the video you want. I can plan the hook, write the script, " +
-                    "direct the scenes, and build a 720p preview.",
-                mode = ChatMode.PLAN,
-            ),
-        )
+        mutableStateListOf<ChatMessage>().apply {
+            addAll(savedSession.messages)
+            if (isEmpty()) {
+                add(
+                    ChatMessage(
+                        role = "assistant",
+                        content = "Tell me the video you want. I can plan the hook, write the script, " +
+                            "direct the scenes, and build a 720p preview.",
+                        mode = ChatMode.PLAN,
+                    ),
+                )
+            }
+        }
     }
     var input by rememberSaveable { mutableStateOf("") }
-    var modeName by rememberSaveable { mutableStateOf(ChatMode.PLAN.name) }
+    var modeName by rememberSaveable { mutableStateOf(savedSession.mode.ifBlank { ChatMode.PLAN.name }) }
     var isSending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var pendingAsk by remember { mutableStateOf<AskPrompt?>(null) }
-    var buildProject by remember { mutableStateOf<BuildProject?>(null) }
+    var pendingAsk by remember { mutableStateOf(savedSession.pendingAsk) }
+    var buildProject by remember { mutableStateOf(savedSession.project?.sanitized()) }
     var showReview by remember { mutableStateOf(false) }
     val mode = runCatching { ChatMode.valueOf(modeName) }.getOrDefault(ChatMode.PLAN)
     val listState = rememberLazyListState()
@@ -139,6 +149,17 @@ fun ChatScreen(
             }
             isImporting = false
         }
+    }
+
+    LaunchedEffect(messages.toList(), buildProject, pendingAsk, modeName) {
+        sessionStore.save(
+            ChatSession(
+                messages = messages.toList(),
+                project = buildProject,
+                pendingAsk = pendingAsk,
+                mode = modeName,
+            ),
+        )
     }
 
     LaunchedEffect(messages.size, isSending) {

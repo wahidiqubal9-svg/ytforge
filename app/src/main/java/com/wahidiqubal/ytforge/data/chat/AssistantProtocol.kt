@@ -1,21 +1,25 @@
 package com.wahidiqubal.ytforge.data.chat
 
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
+@Serializable
 data class AskOption(
     val label: String,
     val value: String = label,
 )
 
+@Serializable
 data class AskPrompt(
     val question: String,
     val options: List<AskOption>,
 )
 
+@Serializable
 data class BuildProject(
     val headline: String = "",
     val subheadline: String = "",
@@ -76,15 +80,18 @@ object AssistantProtocol {
         val root = json.parseToJsonElement(raw.trim()).jsonObject
         fun text(key: String): String = root[key]?.jsonPrimitive?.content?.trim().orEmpty()
         val ratio = text("ratio").takeIf { it in setOf("9:16", "16:9", "1:1") } ?: "9:16"
+        val headline = TextSanitizer.short(text("headline"))
+        val title = TextSanitizer.short(text("title")).ifBlank { headline }
+        val narration = TextSanitizer.multiline(text("narration"))
         val project = BuildProject(
-            headline = text("headline"),
-            subheadline = text("subheadline"),
-            code = text("code"),
-            cta = text("cta"),
-            narration = text("narration"),
-            title = text("title"),
-            description = text("description"),
-            tags = text("tags"),
+            headline = headline.ifBlank { title },
+            subheadline = TextSanitizer.short(text("subheadline")),
+            code = TextSanitizer.coupon(text("code")),
+            cta = TextSanitizer.short(text("cta")),
+            narration = narration,
+            title = title,
+            description = TextSanitizer.multiline(text("description")),
+            tags = TextSanitizer.tags(text("tags")),
             ratio = ratio,
             language = text("language").ifBlank { "hi-IN" },
         )

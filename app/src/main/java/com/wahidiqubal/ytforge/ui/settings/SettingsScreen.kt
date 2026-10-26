@@ -426,22 +426,12 @@ fun SettingsScreen(
                             }
                         }
                     }
-                    Spacer(Modifier.height(12.dp))
-                    Text("Maximum length", style = MaterialTheme.typography.labelLarge, color = Ink)
-                    Spacer(Modifier.height(6.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(listOf(15, 30, 60)) { seconds ->
-                            FilterChip(
-                                selected = maxDurationSec == seconds,
-                                onClick = { maxDurationSec = seconds },
-                                label = { Text("${seconds}s") },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = Accent,
-                                    selectedLabelColor = Color(0xFF04110C),
-                                ),
-                            )
-                        }
-                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "Duration is derived from the voiceover script. No fixed cap.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Muted,
+                    )
                 }
             }
 
