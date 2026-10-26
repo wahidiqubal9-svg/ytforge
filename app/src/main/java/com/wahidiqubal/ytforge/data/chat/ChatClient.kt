@@ -17,6 +17,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -76,7 +77,7 @@ class ChatClient {
             putJsonArray("messages") {
                 add(buildJsonObject {
                     put("role", "system")
-                    put("content", systemPrompt(mode))
+                    put("content", systemPrompt(mode, settings))
                 })
                 messages.forEach { message ->
                     add(buildJsonObject {
@@ -139,7 +140,7 @@ class ChatClient {
         val payload = buildJsonObject {
             put("model", settings.model)
             put("max_tokens", 2048)
-            put("system", systemPrompt(mode))
+            put("system", systemPrompt(mode, settings))
             putJsonArray("messages") {
                 messages.forEach { message ->
                     add(buildJsonObject {
@@ -193,7 +194,7 @@ class ChatClient {
         }
     }
 
-    private fun systemPrompt(mode: ChatMode): String = when (mode) {
+    private fun systemPrompt(mode: ChatMode, settings: ApiSettings): String = when (mode) {
         ChatMode.PLAN -> """
             You are YTForge, a director for short YouTube videos.
             You are in PLAN mode. Do not claim to render or publish anything.
@@ -204,6 +205,8 @@ class ChatClient {
             - suggested thumbnail text
             - title options, description and tags
             Keep replies tight, scannable, and specific. Final voiceover will use Sarvam.
+
+        ${videoDefaults(settings)}
         """.trimIndent()
 
         ChatMode.BUILD -> """
@@ -212,7 +215,27 @@ class ChatClient {
             exact narration, timing, thumbnail copy, title, description and tags.
             The app will generate Sarvam voiceover, render a 720p preview, and ask
             before uploading to YouTube. Never claim an upload happened until the app confirms it.
+
+        ${videoDefaults(settings)}
         """.trimIndent()
+    }
+
+    private fun videoDefaults(settings: ApiSettings): String {
+        val quality = when (settings.videoQuality) {
+            "720p60" -> "720p at 60fps"
+            else -> "720p at 30fps"
+        }
+        val ratio = when (settings.videoRatio) {
+            "16:9" -> "16:9 landscape"
+            "1:1" -> "1:1 square"
+            else -> "9:16 vertical Shorts"
+        }
+        val preview = if (settings.previewFirst) {
+            "Yes, first render a ${settings.previewQuality} preview"
+        } else {
+            "No, render the final directly"
+        }
+        return "Output defaults: $ratio, $quality, maximum ${settings.maxDurationSec}s. Preview first: $preview."
     }
 
     private fun imageBase64(path: String): String? =

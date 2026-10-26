@@ -36,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -86,6 +87,11 @@ fun SettingsScreen(
     var youtubeClientId by rememberSaveable { mutableStateOf(settings.youtubeClientId) }
     var renderRepo by rememberSaveable { mutableStateOf(settings.renderRepo) }
     var renderToken by rememberSaveable { mutableStateOf(settings.renderToken) }
+    var videoRatio by rememberSaveable { mutableStateOf(settings.videoRatio) }
+    var videoQuality by rememberSaveable { mutableStateOf(settings.videoQuality) }
+    var previewFirst by rememberSaveable { mutableStateOf(settings.previewFirst) }
+    var previewQuality by rememberSaveable { mutableStateOf(settings.previewQuality) }
+    var maxDurationSec by rememberSaveable { mutableStateOf(settings.maxDurationSec) }
     var showLlmKey by remember { mutableStateOf(false) }
     var showSarvamKey by remember { mutableStateOf(false) }
     var showRenderToken by remember { mutableStateOf(false) }
@@ -235,6 +241,94 @@ fun SettingsScreen(
 
             item {
                 SectionCard(
+                    title = "Video output",
+                    subtitle = "Defaults for Build mode. Final output is 720p; previews are fast and lower resolution.",
+                ) {
+                    Text("Aspect ratio", style = MaterialTheme.typography.labelLarge, color = Ink)
+                    Spacer(Modifier.height(6.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(listOf("9:16" to "Shorts", "16:9" to "Landscape", "1:1" to "Square")) { (value, label) ->
+                            FilterChip(
+                                selected = videoRatio == value,
+                                onClick = { videoRatio = value },
+                                label = { Text("$value $label") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = Accent,
+                                    selectedLabelColor = Color(0xFF04110C),
+                                ),
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text("Final quality", style = MaterialTheme.typography.labelLarge, color = Ink)
+                    Spacer(Modifier.height(6.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(listOf("720p30" to "720p · 30fps", "720p60" to "720p · 60fps")) { (value, label) ->
+                            FilterChip(
+                                selected = videoQuality == value,
+                                onClick = { videoQuality = value },
+                                label = { Text(label) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = Accent,
+                                    selectedLabelColor = Color(0xFF04110C),
+                                ),
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Preview before final", style = MaterialTheme.typography.labelLarge, color = Ink)
+                            Text(
+                                "Render a low-quality preview first, then upgrade on demand.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Muted,
+                            )
+                        }
+                        Switch(checked = previewFirst, onCheckedChange = { previewFirst = it })
+                    }
+                    if (previewFirst) {
+                        Spacer(Modifier.height(10.dp))
+                        Text("Preview quality", style = MaterialTheme.typography.labelLarge, color = Ink)
+                        Spacer(Modifier.height(6.dp))
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(listOf("360p", "480p")) { value ->
+                                FilterChip(
+                                    selected = previewQuality == value,
+                                    onClick = { previewQuality = value },
+                                    label = { Text(value) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = Accent,
+                                        selectedLabelColor = Color(0xFF04110C),
+                                    ),
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text("Maximum length", style = MaterialTheme.typography.labelLarge, color = Ink)
+                    Spacer(Modifier.height(6.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(listOf(15, 30, 60)) { seconds ->
+                            FilterChip(
+                                selected = maxDurationSec == seconds,
+                                onClick = { maxDurationSec = seconds },
+                                label = { Text("${seconds}s") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = Accent,
+                                    selectedLabelColor = Color(0xFF04110C),
+                                ),
+                            )
+                        }
+                    }
+                }
+            }
+
+            item {
+                SectionCard(
                     title = "Render backend",
                     subtitle = "Optional. Use any GitHub account: create a private repo and copy render-backend/.github/workflows/render.yml into it.",
                 ) {
@@ -283,6 +377,11 @@ fun SettingsScreen(
                                 githubToken = settings.githubToken,
                                 renderRepo = renderRepo.trim(),
                                 renderToken = renderToken.trim(),
+                                videoRatio = videoRatio,
+                                videoQuality = videoQuality,
+                                previewFirst = previewFirst,
+                                previewQuality = previewQuality,
+                                maxDurationSec = maxDurationSec,
                             )
                             scope.launch {
                                 runCatching {
@@ -403,6 +502,11 @@ fun SettingsScreen(
                                 githubToken = settings.githubToken,
                                 renderRepo = renderRepo.trim(),
                                 renderToken = renderToken.trim(),
+                                videoRatio = videoRatio,
+                                videoQuality = videoQuality,
+                                previewFirst = previewFirst,
+                                previewQuality = previewQuality,
+                                maxDurationSec = maxDurationSec,
                             ),
                         )
                         Toast.makeText(context, "Saved on this device", Toast.LENGTH_SHORT).show()

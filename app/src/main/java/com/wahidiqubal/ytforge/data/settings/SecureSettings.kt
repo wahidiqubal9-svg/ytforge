@@ -23,6 +23,11 @@ data class ApiSettings(
     val githubToken: String = "",
     val renderRepo: String = "",
     val renderToken: String = "",
+    val videoRatio: String = "9:16",
+    val videoQuality: String = "720p30",
+    val previewFirst: Boolean = true,
+    val previewQuality: String = "360p",
+    val maxDurationSec: Int = 60,
 )
 
 data class ProviderPreset(
