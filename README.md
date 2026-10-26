@@ -15,3 +15,11 @@ engine, with a local WebView preview path for the app.
 
 The `Render Spike` workflow renders a 10-second 720x1280 HyperFrames composition on a
 GitHub-hosted runner and uploads the MP4 as a build artifact.
+
+## Install on Samsung / Android 13+
+
+1. Download the APK in a browser (Chrome/Samsung Internet), not the GitHub app preview.
+2. Allow installs from that browser: Settings → Apps → Special access → Install unknown apps → Browser → Allow.
+3. On One UI 6.1+, disable **Auto Blocker**: Settings → Security and privacy → Auto Blocker → Off.
+4. If Play Protect warns, choose **More details → Install anyway**.
+5. The first install is manual. Later updates happen inside the app.
