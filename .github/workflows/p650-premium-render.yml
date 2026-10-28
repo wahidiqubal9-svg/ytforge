@@ -1,0 +1,78 @@
+name: P650 Premium Remotion Render
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: p650-premium-render
+  cancel-in-progress: false
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: remotion/package-lock.json
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          ffmpeg -version | head -1
+
+      - name: Install Remotion dependencies
+        working-directory: remotion
+        run: npm ci --no-audit --no-fund
+
+      - name: Ensure Remotion browser
+        working-directory: remotion
+        run: npx remotion browser ensure
+
+      - name: Render 720p silent MP4
+        working-directory: remotion
+        run: |
+          mkdir -p out
+          npx remotion render src/index.ts P650Promo out/prepladder-p650-premium-720p.mp4 \
+            --codec=h264 --crf=17 --concurrency=2
+
+      - name: Verify video output
+        working-directory: remotion
+        run: |
+          test -s out/prepladder-p650-premium-720p.mp4
+          ffprobe -v error \
+            -show_entries stream=codec_name,width,height,r_frame_rate \
+            -show_entries format=duration,size \
+            -of json out/prepladder-p650-premium-720p.mp4
+          ffmpeg -hide_banner -i out/prepladder-p650-premium-720p.mp4 2>&1 | grep -E "Audio:|Video:" || true
+
+      - name: Publish downloadable MP4 release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="p650-premium-${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" remotion/out/prepladder-p650-premium-720p.mp4 \
+            --title "PrepLadder P650 Premium Promo" \
+            --notes "Code-rendered Remotion promo. 1280x720, 30fps, silent video ready for Hindi voiceover." \
+            --latest=false
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/prepladder-p650-premium-720p.mp4"
+          echo "### [Download the P650 Premium MP4]($URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Output: 1280x720, 30fps, silent" >> "$GITHUB_STEP_SUMMARY"
+          echo "$URL"
+
+      - name: Keep workflow artifact as backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: prepladder-p650-premium-720p
+          path: remotion/out/prepladder-p650-premium-720p.mp4
+          retention-days: 7
