@@ -81,6 +81,7 @@ jobs:
         if: inputs.engine == 'remotion'
         run: |
           test -f work/props.json
+          mkdir -p ytforge-src/remotion/public
           cp work/props.json ytforge-src/remotion/props.json
           cp work/voice.wav ytforge-src/remotion/public/voice.wav
           if [ -f work/image.jpg ]; then cp work/image.jpg ytforge-src/remotion/public/image.jpg; fi

@@ -212,7 +212,7 @@ class RenderClient(private val context: Context) {
                     val conclusion = run["conclusion"]?.jsonPrimitive?.content
                     if (status == "completed") {
                         if (conclusion == "success") return id
-                        error("Render failed on GitHub Actions (${conclusion ?: "unknown"}). Open the run: $API/repos/$repo/actions/runs/$id")
+                        error("Render failed on GitHub Actions (${conclusion ?: "unknown"}). Open the run: https://github.com/$repo/actions/runs/$id")
                     }
                     onProgress(
                         when (status) {
