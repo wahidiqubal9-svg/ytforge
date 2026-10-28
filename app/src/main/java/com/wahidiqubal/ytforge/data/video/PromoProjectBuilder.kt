@@ -2,6 +2,8 @@ package com.wahidiqubal.ytforge.data.video
 
 import com.wahidiqubal.ytforge.data.chat.TextSanitizer
 import com.wahidiqubal.ytforge.data.voice.VoiceResult
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.Locale
@@ -20,6 +22,7 @@ data class PromoSpec(
     val description: String,
     val tags: String,
     val videoStyle: String = "kinetic",
+    val engine: String = "remotion",
 )
 
 object PromoProjectBuilder {
@@ -46,6 +49,23 @@ object PromoProjectBuilder {
                 zip.write(image.readBytes())
                 zip.closeEntry()
             }
+
+            val frames = (((voice.durationMs / 1000.0) + 0.9) * 30.0).toInt().coerceAtLeast(90)
+            val props = buildJsonObject {
+                put("headline", TextSanitizer.short(spec.headline.ifBlank { "Special Offer" }))
+                put("subheadline", TextSanitizer.short(spec.subheadline))
+                put("code", TextSanitizer.coupon(spec.code))
+                put("cta", TextSanitizer.short(spec.cta))
+                put("title", TextSanitizer.short(spec.title.ifBlank { spec.headline }))
+                put("styleId", spec.videoStyle)
+                put("ratio", spec.ratio)
+                put("durationInFrames", frames)
+                put("audio", "voice.wav")
+                if (image != null) put("image", "image.jpg")
+            }
+            zip.putNextEntry(ZipEntry("props.json"))
+            zip.write(props.toString().toByteArray(Charsets.UTF_8))
+            zip.closeEntry()
         }
         return out.toByteArray()
     }

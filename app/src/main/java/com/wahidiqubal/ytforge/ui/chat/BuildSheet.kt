@@ -119,6 +119,7 @@ fun BuildSheet(
     var tags by rememberSaveable { mutableStateOf(safeProject?.tags.orEmpty()) }
     var ratio by rememberSaveable { mutableStateOf(safeProject?.ratio?.takeIf { it in setOf("9:16", "16:9", "1:1") } ?: settings.videoRatio) }
     var videoStyle by rememberSaveable { mutableStateOf(safeProject?.videoStyle ?: "kinetic") }
+    var engine by rememberSaveable { mutableStateOf(safeProject?.engine ?: "remotion") }
     var images by remember { mutableStateOf(initialImages) }
     var thumbnail by remember { mutableStateOf<File?>(null) }
     var thumbnailBusy by remember { mutableStateOf(false) }
@@ -235,10 +236,21 @@ fun BuildSheet(
                     description = description,
                     tags = tags,
                     videoStyle = videoStyle,
+                    engine = engine,
                 )
                 val zip = PromoProjectBuilder.build(spec, voice)
                 status = "Uploading to the render backend…"
-                renderClient.render(settings, zip, "build-${UUID.randomUUID()}") { message ->
+                renderClient.render(
+                    settings = settings,
+                    projectZip = zip,
+                    jobId = "build-${UUID.randomUUID()}",
+                    engine = engine,
+                    composition = when (ratio) {
+                        "9:16" -> "PromoPortrait"
+                        "1:1" -> "PromoSquare"
+                        else -> "Promo"
+                    },
+                ) { message ->
                     status = message
                 }
             }.onSuccess {
@@ -436,6 +448,31 @@ fun BuildSheet(
                                         }
                                     }
                                 }
+                                item {
+                                    Text("Render engine", style = MaterialTheme.typography.labelLarge, color = Ink)
+                                    Spacer(Modifier.height(6.dp))
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        listOf("remotion" to "Remotion", "hyperframes" to "HyperFrames").forEach { (id, label) ->
+                                            if (engine == id) {
+                                                Button(onClick = {
+                                                    engine = id
+                                                    safeProject?.copy(engine = id)?.let(onProjectChange)
+                                                }) { Text(label) }
+                                            } else {
+                                                OutlinedButton(onClick = {
+                                                    engine = id
+                                                    safeProject?.copy(engine = id)?.let(onProjectChange)
+                                                }) { Text(label) }
+                                            }
+                                        }
+                                    }
+                                    Text(
+                                        if (engine == "remotion") "React/Remotion renderer on GitHub Actions."
+                                        else "HyperFrames HTML renderer on GitHub Actions.",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Muted,
+                                    )
+                                }
                             }
                             1 -> {
                                 item {
@@ -545,7 +582,7 @@ fun BuildSheet(
                                     )
                                 }
                                 item {
-                                    Text("${VideoStyles.byId(videoStyle).name} · $ratio · 720p · ${narration.length} script characters · ${images.size} image(s)", style = MaterialTheme.typography.bodyMedium, color = Ink)
+                                    Text("${if (engine == "remotion") "Remotion" else "HyperFrames"} · ${VideoStyles.byId(videoStyle).name} · $ratio · 720p · ${narration.length} script characters · ${images.size} image(s)", style = MaterialTheme.typography.bodyMedium, color = Ink)
                                     Text("Title: ${title.ifBlank { headline }}", style = MaterialTheme.typography.bodyMedium, color = Muted)
                                     if (code.isNotBlank()) Text("Code: $code", style = MaterialTheme.typography.bodyMedium, color = Muted)
                                     if (cta.isNotBlank()) Text("CTA: $cta", style = MaterialTheme.typography.bodyMedium, color = Muted)

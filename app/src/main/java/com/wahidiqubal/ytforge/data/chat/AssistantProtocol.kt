@@ -33,6 +33,7 @@ data class BuildProject(
     val language: String = "hi-IN",
     val thumbnailPath: String? = null,
     val videoStyle: String = "kinetic",
+    val engine: String = "remotion",
 )
 
 data class ParsedReply(

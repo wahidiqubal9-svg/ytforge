@@ -7,6 +7,16 @@ on:
         description: "YTForge job id"
         required: true
         type: string
+      engine:
+        description: "hyperframes or remotion"
+        required: false
+        default: "hyperframes"
+        type: string
+      composition:
+        description: "Remotion composition"
+        required: false
+        default: "Promo"
+        type: string
 
 run-name: ytforge-render-${{ inputs.job_id }}
 
@@ -21,7 +31,7 @@ concurrency:
 jobs:
   render:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -34,12 +44,20 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
           ffmpeg -version | head -1
-          ffprobe -version | head -1
 
       - name: Install HyperFrames
+        if: inputs.engine != 'remotion'
         run: |
           npm init -y
           npm install hyperframes@0.8.201 --no-audit --no-fund
+
+      - name: Install Remotion
+        if: inputs.engine == 'remotion'
+        run: |
+          git clone --depth 1 https://github.com/wahidiqubal9-svg/ytforge.git ytforge-src
+          cd ytforge-src/remotion
+          npm install --no-audit --no-fund
+          npx remotion browser ensure
 
       - name: Prepare project
         run: |
@@ -47,16 +65,33 @@ jobs:
           rm -rf work out
           mkdir -p work out
           unzip -q "jobs/${{ inputs.job_id }}/project.zip" -d work
-          test -f work/index.html
           ls -la work | head -30
 
-      - name: Render 720p
+      - name: Render HyperFrames
+        if: inputs.engine != 'remotion'
         run: |
+          test -f work/index.html
           npx hyperframes render work \
             --output out/video-720p.mp4 \
             --fps 30 \
             --quality draft \
             --workers 2
+
+      - name: Render Remotion
+        if: inputs.engine == 'remotion'
+        run: |
+          test -f work/props.json
+          cp work/props.json ytforge-src/remotion/props.json
+          cp work/voice.wav ytforge-src/remotion/public/voice.wav
+          if [ -f work/image.jpg ]; then cp work/image.jpg ytforge-src/remotion/public/image.jpg; fi
+          cd ytforge-src/remotion
+          npx remotion render src/index.ts "${{ inputs.composition }}" \
+            out/video-720p.mp4 \
+            --props=props.json \
+            --codec=h264 \
+            --crf=18 \
+            --concurrency=2
+          cp out/video-720p.mp4 "$GITHUB_WORKSPACE/out/video-720p.mp4"
 
       - name: Make preview and thumbnail
         run: |

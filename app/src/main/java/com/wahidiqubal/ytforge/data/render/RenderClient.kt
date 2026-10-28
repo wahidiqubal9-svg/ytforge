@@ -39,6 +39,8 @@ class RenderClient(private val context: Context) {
         settings: ApiSettings,
         projectZip: ByteArray,
         jobId: String,
+        engine: String = "hyperframes",
+        composition: String = "Promo",
         onProgress: (String) -> Unit = {},
     ): RenderOutput = withContext(Dispatchers.IO) {
         val repo = settings.renderRepo.trim().trim('/')
@@ -49,10 +51,12 @@ class RenderClient(private val context: Context) {
         require(token.isNotBlank()) { "Add the render GitHub token in Settings." }
         val branch = settings.renderBranch.ifBlank { "main" }
 
+        onProgress("Updating render workflow…")
+        installWorkflow(repo, token, branch)
         onProgress("Uploading project…")
         upload(repo, token, branch, jobId, projectZip)
         onProgress("Starting renderer…")
-        dispatch(repo, token, branch, jobId)
+        dispatch(repo, token, branch, jobId, engine, composition)
 
         onProgress("Waiting for a GitHub runner…")
         val runId = waitForRun(repo, token, jobId, onProgress)
@@ -69,6 +73,49 @@ class RenderClient(private val context: Context) {
             preview = files["preview-360p.mp4"],
             thumbnail = files["thumbnail.jpg"],
         )
+    }
+
+    private fun installWorkflow(repo: String, token: String, branch: String) {
+        val content = context.assets.open("render.yml").bufferedReader().use { it.readText() }
+        val path = ".github/workflows/render.yml"
+        var sha: String? = null
+        val getRequest = Request.Builder()
+            .url("$API/repos/$repo/contents/$path?ref=$branch")
+            .header("Authorization", "Bearer $token")
+            .header("Accept", "application/vnd.github+json")
+            .header("X-GitHub-Api-Version", "2022-11-28")
+            .header("User-Agent", "YTForge")
+            .get()
+            .build()
+        http.executeGitHub(getRequest).use { response ->
+            if (response.isSuccessful) {
+                sha = runCatching {
+                    json.parseToJsonElement(response.body?.string().orEmpty())
+                        .jsonObject["sha"]?.jsonPrimitive?.content
+                }.getOrNull()
+            } else if (response.code != 404) {
+                error("Could not read the render workflow (HTTP ${response.code}). Reconnect GitHub.")
+            }
+        }
+        val payload = buildJsonObject {
+            put("message", "Update YTForge render workflow")
+            put("content", Base64.encodeToString(content.toByteArray(Charsets.UTF_8), Base64.NO_WRAP))
+            put("branch", branch)
+            if (sha != null) put("sha", sha)
+        }
+        val putRequest = Request.Builder()
+            .url("$API/repos/$repo/contents/$path")
+            .header("Authorization", "Bearer $token")
+            .header("Accept", "application/vnd.github+json")
+            .header("X-GitHub-Api-Version", "2022-11-28")
+            .header("User-Agent", "YTForge")
+            .put(payload.toString().toRequestBody(JSON))
+            .build()
+        http.executeGitHub(putRequest).use { response ->
+            if (!response.isSuccessful) {
+                error("Could not update the render workflow (HTTP ${response.code}). Reconnect GitHub.")
+            }
+        }
     }
 
     private fun upload(repo: String, token: String, branch: String, jobId: String, zip: ByteArray) {
@@ -90,11 +137,20 @@ class RenderClient(private val context: Context) {
         }
     }
 
-    private fun dispatch(repo: String, token: String, branch: String, jobId: String) {
+    private fun dispatch(
+        repo: String,
+        token: String,
+        branch: String,
+        jobId: String,
+        engine: String,
+        composition: String,
+    ) {
         val payload = buildJsonObject {
             put("ref", branch)
             putJsonObject("inputs") {
                 put("job_id", jobId)
+                put("engine", engine)
+                put("composition", composition)
             }
         }
         val request = Request.Builder()
