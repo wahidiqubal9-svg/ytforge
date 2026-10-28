@@ -118,7 +118,7 @@ const PriceCard: React.FC<{ plan: typeof PRICES[number] }> = ({ plan }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const p = spring({ frame, fps, config: { damping: 16, stiffness: 150 } });
-  const shown = Math.round(interpolate(p, [0, 1], [0, plan.price]));
+  const shown = Math.round(interpolate(clamp(p), [0, 1], [0, plan.price]));
   const save = plan.old - plan.price;
   return (
     <div style={{
