@@ -65,7 +65,7 @@ const Card: React.FC<{
   frame: number;
   fps: number;
   delay: number;
-  width: number;
+  width: React.CSSProperties["width"];
 }> = ({ label, value, palette, frame, fps, delay, width }) => (
   <div
     style={{

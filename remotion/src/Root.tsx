@@ -2,6 +2,7 @@ import { Composition, type CalculateMetadataFunction } from "remotion";
 import { Promo, type PromoProps } from "./Promo";
 import { PremiumPromo } from "./PremiumPromo";
 import { PwMedEdOffer } from "./PwMedEdOffer";
+import { PwMedEdPulse } from "./PwMedEdPulse";
 
 const defaultProps: PromoProps = {
   headline: "Make videos by chatting.",
@@ -48,6 +49,14 @@ export const RemotionRoot = () => (
       fps={30}
       width={640}
       height={360}
+    />
+    <Composition
+      id="PwMedEdPulse"
+      component={PwMedEdPulse}
+      durationInFrames={2250}
+      fps={30}
+      width={1280}
+      height={720}
     />
     <Composition
       id="PremiumPromo"
