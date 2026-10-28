@@ -1,25 +1,34 @@
-# YTForge
+# YTForge Video Studio
 
-Chat-driven YouTube video studio for Android.
+Agent-managed short-form videos built with **Remotion** and rendered on **GitHub Actions**.
 
-**Status:** bootstrap. The on-device Chromium/HyperFrames runtime was ruled out after a
-PRoot benchmark (Chromium crashes with SIGTRAP). Rendering moves to a remote HyperFrames
-engine, with a local WebView preview path for the app.
+- **On-screen text:** English only
+- **Voiceover:** Hindi
+- **Default output:** 16:9, 1280×720, 30fps
+- **Delivery:** public direct-download MP4 links
+- **No APK or Android build**
 
-- App package: `com.wahidiqubal.ytforge`
-- Target: Android 13+, 720p output
-- Builds: GitHub Actions only
-- Secrets: API keys are entered in the app, never stored in this repository
+Read [AGENTS.md](AGENTS.md) before creating or rendering any video.
 
-## Render spike
+## Current video
 
-The `Render Spike` workflow renders a 10-second 720x1280 HyperFrames composition on a
-GitHub-hosted runner and uploads the MP4 as a build artifact.
+**PW MedEd — Pulse**
 
-## Install on Samsung / Android 13+
+[Download the 720p MP4](https://github.com/wahidiqubal9-svg/ytforge/releases/download/pw-pulse-1/pw-meded-pulse-720p.mp4)
 
-1. Download the APK in a browser (Chrome/Samsung Internet), not the GitHub app preview.
-2. Allow installs from that browser: Settings → Apps → Special access → Install unknown apps → Browser → Allow.
-3. On One UI 6.1+, disable **Auto Blocker**: Settings → Security and privacy → Auto Blocker → Off.
-4. If Play Protect warns, choose **More details → Install anyway**.
-5. The first install is manual. Later updates happen inside the app.
+- Composition: `PwMedEdPulse`
+- Source project: `projects/pw-meded/`
+- Voice: `remotion/public/voice-pw.mp3`
+- Logo: `remotion/public/pw-meded-logo.png`
+- SFX: `remotion/public/sfx/`
+
+## Render
+
+1. Push changes to `main`.
+2. Open **Actions → PW MedEd Pulse Render**.
+3. Run the workflow.
+4. Open the workflow summary for the direct MP4 link.
+
+## Voice generation
+
+The Sarvam key belongs in the repository secret `SARVAM_API_KEY`. It must never be committed or printed in logs. If the key is unavailable, provide a Hindi MP3 and align the scenes to its measured durations.

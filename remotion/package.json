@@ -3,7 +3,8 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "render": "remotion render src/index.ts Promo out/video.mp4"
+    "render": "remotion render src/index.ts PwMedEdPulse out/pw-meded-pulse-720p.mp4",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@remotion/cli": "4.0.539",
