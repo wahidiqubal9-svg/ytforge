@@ -8,7 +8,7 @@ Agent-managed short-form videos built with **Remotion** and rendered on **GitHub
 - **Delivery:** public direct-download MP4 links
 - **No APK or Android build**
 
-Read [AGENTS.md](AGENTS.md) before creating or rendering any video.
+Read [AGENTS.md](AGENTS.md) before creating or rendering any video. Every delivery includes a clickable MP4 link in chat plus 3 title suggestions and 2 description options.
 
 ## Current video
 

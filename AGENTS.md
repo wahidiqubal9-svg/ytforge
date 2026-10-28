@@ -177,7 +177,33 @@ Before sending it:
 
 Send the link as a clickable markdown link and include a short spec line.
 
-## 12. QA checklist
+**After every completed generation, post the clickable direct MP4 link inside the chat itself.** Do not send only the workflow URL, release page, or a note that the render finished. The chat reply must contain the link in this form:
+
+```md
+[Download the 720p MP4](https://github.com/<owner>/<repo>/releases/download/<tag>/<file>.mp4)
+```
+
+## 12. Title and description suggestions
+
+After the video link, always provide publishing copy in the same chat reply:
+
+- **3 title suggestions**
+  - English only.
+  - Lead with the hook or strongest benefit.
+  - Include the brand and offer/coupon where useful.
+  - Keep each title under 100 characters.
+  - No unverified claims, fake urgency, or clickbait.
+- **2 description options**
+  - One short description for Shorts/Reels.
+  - One longer description for YouTube.
+  - English only.
+  - Include the confirmed offer, coupon code, and CTA link.
+  - Add relevant hashtags only when they fit the platform.
+  - Do not invent prices, discounts, plan durations, or claims.
+
+Tailor the suggestions to the confirmed platform and audience. If the platform is unknown, default to YouTube 16:9.
+
+## 13. QA checklist
 
 - [ ] English-only on-screen text
 - [ ] Hindi voiceover only
@@ -190,9 +216,11 @@ Send the link as a clickable markdown link and include a short spec line.
 - [ ] Style differs from the last two videos
 - [ ] 16:9 720p unless requested otherwise
 - [ ] Public direct MP4 link verified
+- [ ] Clickable link posted inside the chat
+- [ ] 3 title suggestions and 2 description options included
 - [ ] No secrets in the repository or logs
 
-## 13. Current reference project
+## 14. Current reference project
 
 - Project: `projects/pw-meded/`
 - Composition: `PwMedEdPulse`
