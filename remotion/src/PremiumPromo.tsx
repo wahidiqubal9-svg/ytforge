@@ -9,6 +9,12 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
+import { loadFont } from "@remotion/google-fonts/NotoSansDevanagari";
+
+const { fontFamily: devanagari } = loadFont("normal", {
+  weights: ["400", "700", "900"],
+  subsets: ["devanagari", "latin"],
+});
 
 type Props = { audio: string };
 
@@ -231,7 +237,7 @@ export const PremiumPromo: React.FC<Props> = ({ audio }) => {
   const progress = interpolate(frame, [0, Math.min(durationInFrames, 146 * fps)], [0, 1], { extrapolateRight: "clamp" });
 
   return (
-    <AbsoluteFill style={{ fontFamily: "system-ui, -apple-system, sans-serif", color: INK }}>
+    <AbsoluteFill style={{ fontFamily: `${devanagari}, system-ui, -apple-system, sans-serif`, color: INK }}>
       <Background />
       {segments.map(({ start, end, component: Scene }, index) => {
         const from = Math.floor(start * fps);
