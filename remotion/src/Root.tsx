@@ -1,5 +1,6 @@
 import { Composition, type CalculateMetadataFunction } from "remotion";
 import { Promo, type PromoProps } from "./Promo";
+import { PremiumPromo } from "./PremiumPromo";
 
 const defaultProps: PromoProps = {
   headline: "Make videos by chatting.",
@@ -38,6 +39,15 @@ export const RemotionRoot = () => (
       height={1280}
       defaultProps={{ ...defaultProps, ratio: "9:16" }}
       calculateMetadata={duration}
+    />
+    <Composition
+      id="PremiumPromo"
+      component={PremiumPromo}
+      durationInFrames={4410}
+      fps={30}
+      width={640}
+      height={360}
+      defaultProps={{ audio: "voice.mp3" }}
     />
     <Composition
       id="PromoSquare"
