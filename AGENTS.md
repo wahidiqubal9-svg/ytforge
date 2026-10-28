@@ -230,3 +230,20 @@ Tailor the suggestions to the confirmed platform and audience. If the platform i
 - Render workflow: `.github/workflows/pw-pulse-render.yml`
 
 This is a reference for the pipeline, not a template to copy visually.
+
+## 15. On-demand operation
+
+- **Do not schedule or automate daily video creation.** No cron jobs, no auto-publish jobs, and no recurring gallery watcher unless the user explicitly asks for it later.
+- Create, render, and upload a video **only when the user asks**.
+- When the user asks to post to YouTube, upload directly to the configured channel if these secrets exist:
+  - `YOUTUBE_CLIENT_ID`
+  - `YOUTUBE_CLIENT_SECRET`
+  - `YOUTUBE_REFRESH_TOKEN`
+- Never ask for or store a YouTube password. Use OAuth only.
+- If YouTube credentials are absent, render the video, provide the direct MP4 link, and ask the user to add the credentials.
+- After a YouTube upload, send:
+  - the clickable YouTube watch link
+  - the clickable MP4 link
+  - 3 title suggestions
+  - 2 description options
+- Change the script and visual style for every new video. Repeating the same price is allowed; repeating the same edit is not.

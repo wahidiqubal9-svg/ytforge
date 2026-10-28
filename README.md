@@ -1,6 +1,6 @@
 # YTForge Video Studio
 
-Agent-managed short-form videos built with **Remotion** and rendered on **GitHub Actions**.
+Agent-managed short-form videos built with **Remotion** and rendered on **GitHub Actions**. Videos are created **on demand only** — no daily automation.
 
 - **On-screen text:** English only
 - **Voiceover:** Hindi
@@ -32,3 +32,7 @@ Read [AGENTS.md](AGENTS.md) before creating or rendering any video. Every delive
 ## Voice generation
 
 The Sarvam key belongs in the repository secret `SARVAM_API_KEY`. It must never be committed or printed in logs. If the key is unavailable, provide a Hindi MP3 and align the scenes to its measured durations.
+
+## YouTube upload
+
+Upload is on demand and requires `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, and `YOUTUBE_REFRESH_TOKEN` in GitHub Actions secrets. If they are missing, the video is still rendered and delivered as a direct MP4 link.
