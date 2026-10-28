@@ -2,6 +2,11 @@ name: P650 Premium Remotion Render
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - "remotion/src/P650Promo.tsx"
+      - "remotion/src/Root.tsx"
+      - ".github/workflows/p650-premium-render.yml"
 
 permissions:
   contents: write
