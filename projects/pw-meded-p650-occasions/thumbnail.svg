@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff8e9"/>
+      <stop offset="0.55" stop-color="#ffe9c9"/>
+      <stop offset="1" stop-color="#ffd8dc"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#17221c"/>
+      <stop offset="1" stop-color="#008c83"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#17221c" flood-opacity=".2"/>
+    </filter>
+    <pattern id="grid" width="44" height="44" patternUnits="userSpaceOnUse">
+      <path d="M44 0H0V44" fill="none" stroke="#17221c" stroke-opacity=".07"/>
+    </pattern>
+  </defs>
+
+  <rect width="1280" height="720" fill="url(#bg)"/>
+  <rect width="1280" height="720" fill="url(#grid)"/>
+  <circle cx="1100" cy="100" r="250" fill="#ff7a00" fill-opacity=".15"/>
+  <circle cx="80" cy="650" r="230" fill="#008c83" fill-opacity=".12"/>
+
+  <g font-family="Arial, Helvetica, sans-serif" fill="#17221c">
+    <rect x="58" y="48" width="245" height="58" rx="8" fill="#fff" filter="url(#shadow)"/>
+    <text x="82" y="86" font-size="28" font-weight="900" letter-spacing="3">PW MEDED</text>
+    <text x="58" y="170" font-size="18" font-weight="800" letter-spacing="5" fill="#008c83">FESTIVE SAVINGS</text>
+    <text x="58" y="286" font-size="108" font-weight="900" letter-spacing="-4">MAXIMUM</text>
+    <text x="58" y="386" font-size="108" font-weight="900" letter-spacing="-4" fill="#e83c72">DISCOUNT</text>
+    <text x="58" y="444" font-size="25" font-weight="700" letter-spacing="2">ON ALL PLANS · ALL OCCASIONS</text>
+    <text x="58" y="508" font-size="21" font-weight="800" letter-spacing="2" fill="#008c83">DIWALI · HOLI · NAVRATRI · MORE</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="830" y="145" width="360" height="310" rx="28" fill="url(#card)" transform="rotate(6 1010 300)"/>
+    <rect x="855" y="170" width="310" height="260" rx="20" fill="none" stroke="#fff8e9" stroke-opacity=".32" transform="rotate(6 1010 300)"/>
+    <text x="1010" y="232" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="800" letter-spacing="4" fill="#fff8e9" transform="rotate(6 1010 300)">USE COUPON CODE</text>
+    <text x="1010" y="354" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="104" font-weight="900" letter-spacing="6" fill="#ffca70" transform="rotate(6 1010 300)">P650</text>
+    <text x="1010" y="404" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="800" letter-spacing="3" fill="#fff8e9" transform="rotate(6 1010 300)">APPLY AT CHECKOUT</text>
+  </g>
+
+  <g font-family="Arial, Helvetica, sans-serif">
+    <rect x="58" y="602" width="520" height="56" rx="28" fill="#17221c"/>
+    <text x="318" y="638" text-anchor="middle" font-size="20" font-weight="800" letter-spacing="2" fill="#fff8e9">medicalcoupons.in</text>
+    <text x="1215" y="638" text-anchor="end" font-size="17" font-weight="800" letter-spacing="2" fill="#17221c">COMMENT · SUBSCRIBE</text>
+  </g>
+</svg>
