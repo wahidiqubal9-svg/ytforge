@@ -21,7 +21,7 @@ const requestAudio = (text, model) => {
     "-H", `api-subscription-key: ${process.env.SARVAM_API_KEY}`,
     "-H", "Content-Type: application/json",
     "--data", payload,
-  ], { encoding: "utf8" });
+  ], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
   const audio = JSON.parse(response).audios?.[0];
   if (!audio) throw new Error("Sarvam returned no audio");
   return Buffer.from(audio, "base64");
