@@ -1,0 +1,16 @@
+{
+  "fps": 30,
+  "breathingRoom": 0.35,
+  "scenes": [
+    { "id": "hook", "audioSeconds": 0 },
+    { "id": "promise", "audioSeconds": 0 },
+    { "id": "diwali", "audioSeconds": 0 },
+    { "id": "holi", "audioSeconds": 0 },
+    { "id": "rakhi", "audioSeconds": 0 },
+    { "id": "navratri", "audioSeconds": 0 },
+    { "id": "independence", "audioSeconds": 0 },
+    { "id": "steps", "audioSeconds": 0 },
+    { "id": "contact", "audioSeconds": 0 },
+    { "id": "engage", "audioSeconds": 0 }
+  ]
+}
