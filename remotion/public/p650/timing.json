@@ -1,0 +1,12 @@
+{
+  "fps": 30,
+  "breathingRoom": 0.35,
+  "scenes": [
+    { "id": "hook", "audioSeconds": 0 },
+    { "id": "occasion", "audioSeconds": 0 },
+    { "id": "all-plans", "audioSeconds": 0 },
+    { "id": "remember", "audioSeconds": 0 },
+    { "id": "contact", "audioSeconds": 0 },
+    { "id": "engage", "audioSeconds": 0 }
+  ]
+}

@@ -1,0 +1,57 @@
+name: PW MedEd P650 Occasion Render
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+      - name: Install Remotion
+        working-directory: remotion
+        run: npm ci --no-audit --no-fund
+      - name: Ensure Chrome headless shell
+        working-directory: remotion
+        run: npx remotion browser ensure
+      - name: Generate Hindi scene audio and timing
+        env:
+          SARVAM_API_KEY: ${{ secrets.SARVAM_API_KEY }}
+        run: node scripts/generate-p650-voice.mjs
+      - name: Render 360p preview
+        working-directory: remotion
+        run: |
+          mkdir -p out
+          npx remotion render src/index.ts PwMedEdP650 out/pw-meded-p650-occasions-360p.mp4 --codec=h264 --crf=22 --scale=0.5 --concurrency=2
+      - name: Render 720p final
+        working-directory: remotion
+        run: npx remotion render src/index.ts PwMedEdP650 out/pw-meded-p650-occasions-720p.mp4 --codec=h264 --crf=18 --concurrency=2
+      - name: Inspect outputs
+        working-directory: remotion
+        run: |
+          ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate -show_entries format=duration,size -of json out/pw-meded-p650-occasions-720p.mp4
+          ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate -show_entries format=duration,size -of json out/pw-meded-p650-occasions-360p.mp4
+      - name: Publish public links
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="pw-meded-p650-${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" remotion/out/pw-meded-p650-occasions-360p.mp4 remotion/out/pw-meded-p650-occasions-720p.mp4 --title "PW MedEd P650 Occasion Video $TAG" --notes "PW MedEd P650 occasion campaign"
+          echo "### [Download the 720p MP4](https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/pw-meded-p650-occasions-720p.mp4)" >> "$GITHUB_STEP_SUMMARY"
+          echo "### [Download the 360p preview](https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/pw-meded-p650-occasions-360p.mp4)" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pw-meded-p650-occasions
+          path: remotion/out/pw-meded-p650-occasions-*.mp4
+          retention-days: 7

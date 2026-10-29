@@ -1,6 +1,7 @@
 import { Composition } from "remotion";
 import { PwMedEdPulse } from "./PwMedEdPulse";
 import { P650Promo } from "./P650Promo";
+import { PwMedEdP650, p650DurationInFrames } from "./PwMedEdP650";
 
 export const RemotionRoot = () => (
   <>
@@ -16,6 +17,14 @@ export const RemotionRoot = () => (
       id="P650Promo"
       component={P650Promo}
       durationInFrames={720}
+      fps={30}
+      width={1280}
+      height={720}
+    />
+    <Composition
+      id="PwMedEdP650"
+      component={PwMedEdP650}
+      durationInFrames={p650DurationInFrames}
       fps={30}
       width={1280}
       height={720}

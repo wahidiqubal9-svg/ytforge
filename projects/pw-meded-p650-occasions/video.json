@@ -1,0 +1,38 @@
+{
+  "slug": "pw-meded-p650-occasions",
+  "brand": "PW MedEd",
+  "style": "split-screen data story",
+  "format": { "width": 1280, "height": 720, "fps": 30 },
+  "scenes": [
+    {
+      "id": "hook",
+      "screen": ["ONE CODE", "MAXIMUM DISCOUNT"],
+      "voice": "PW MedEd के हर प्लान पर ज्यादा से ज्यादा डिस्काउंट चाहिए? तो कोड P650 को याद रखिए।"
+    },
+    {
+      "id": "occasion",
+      "screen": ["EVERY OCCASION", "ONE SMART CODE"],
+      "voice": "दीवाली हो, होली हो, रक्षाबंधन, नवरात्रि या स्वतंत्रता दिवस, हर मौके पर P650 आपको मैक्सिमम डिस्काउंट पाने में मदद करता है।"
+    },
+    {
+      "id": "all-plans",
+      "screen": ["ALL PLANS", "USE P650"],
+      "voice": "PW MedEd के सभी प्लान्स पर, चेकआउट के समय P650 लगाइए और उपलब्ध मैक्सिमम डिस्काउंट का फायदा उठाइए।"
+    },
+    {
+      "id": "remember",
+      "screen": ["REMEMBER", "P650"],
+      "voice": "बस एक बात याद रखिए: कोई भी प्लान चुनने से पहले P650 जरूर चेक कीजिए।"
+    },
+    {
+      "id": "contact",
+      "screen": ["KNOW MORE", "medicalcoupons.in", "WHATSAPP 8942954415"],
+      "voice": "ज्यादा जानकारी के लिए विजिट कीजिए medicalcoupons.in, या WhatsApp पर संपर्क कीजिए 8942954415।"
+    },
+    {
+      "id": "engage",
+      "screen": ["COMMENT BELOW", "SUBSCRIBE NOW"],
+      "voice": "आप P650 का इस्तेमाल किस प्लान के लिए करेंगे? कमेंट में बताइए, और ऐसे ऑफर्स के लिए चैनल को सब्सक्राइब जरूर कीजिए।"
+    }
+  ]
+}
